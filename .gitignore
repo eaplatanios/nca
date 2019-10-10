@@ -1,0 +1,18 @@
+.DS_Store
+
+# SwiftPM
+.build
+
+# Xcode
+*.xcodeproj
+
+# Visual Studio Code
+.vscode/
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Mac
+.DS_Store
