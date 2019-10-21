@@ -153,9 +153,9 @@ public struct MultiHeadAttention<Scalar: TensorFlowFloatingPoint>: Layer {
     var k = keyActivation(matmul(target, keyWeight) + keyBias)       // [B * T, N * H]
     var v = valueActivation(matmul(target, valueWeight) + valueBias) // [B * T, N * H]
 
-    q = q.reshaped(to: [B, F, N, H]).transposed(withPermutations: 0, 2, 1, 3) // [B, N, F, H]
-    k = k.reshaped(to: [B, T, N, H]).transposed(withPermutations: 0, 2, 1, 3) // [B, N, T, H]
-    v = v.reshaped(to: [B, T, N, H]).transposed(withPermutations: 0, 2, 1, 3) // [B, N, T, H]
+    q = q.reshaped(to: [B, F, N, H]).transposed(permutation: 0, 2, 1, 3) // [B, N, F, H]
+    k = k.reshaped(to: [B, T, N, H]).transposed(permutation: 0, 2, 1, 3) // [B, N, T, H]
+    v = v.reshaped(to: [B, T, N, H]).transposed(permutation: 0, 2, 1, 3) // [B, N, T, H]
 
     // Take the dot product between the query and the key to get the raw attention scores.
     var attentionScores = matmul(q, transposed: false, k, transposed: true) // [B, N, F, T]
@@ -174,7 +174,7 @@ public struct MultiHeadAttention<Scalar: TensorFlowFloatingPoint>: Layer {
     let attentionProbabilities = attentionDropout(softmax(attentionScores)) // [B, N, F, T]
 
     let result = matmul(attentionProbabilities, v) // [B, N, F, H]
-      .transposed(withPermutations: 0, 2, 1, 3)    // [B, F, N, H]
+      .transposed(permutation: 0, 2, 1, 3)         // [B, F, N, H]
     return matrixResult ? result.reshaped(to: [B * F, N * H]) : result.reshaped(to: [B, F, N * H])
   }
 }
