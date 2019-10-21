@@ -16,27 +16,31 @@ import TensorFlow
 
 public protocol Architecture: Differentiable {
   @differentiable
-  func perceive(text: TextBatch) -> Tensor<Float>
+  func perceive(text: TextBatch, problem: Problem) -> Tensor<Float>
 
+  /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  func pool(text: Tensor<Float>) -> Tensor<Float>
+  func pool(text: TextBatch, perceivedText: Tensor<Float>, problem: Problem) -> Tensor<Float>
 
   @differentiable
   func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float>
 
   @differentiable
-  func classify(reasoningOutput: Tensor<Float>, problem: Problem) -> Tensor<Float>
+  func classify(reasoningOutput: Tensor<Float>, problem: Classification) -> Tensor<Float>
 
   @differentiable
-  func label(reasoningOutput: Tensor<Float>, problem: Problem) -> Tensor<Float>
+  func label(reasoningOutput: Tensor<Float>, problem: Labeling) -> Tensor<Float>
 }
 
 extension Architecture {
   @differentiable
-  public func classify(_ input: ArchitectureInput, problem: Problem) -> Tensor<Float> {
+  public func classify(_ input: ArchitectureInput, problem: Classification) -> Tensor<Float> {
     var latent = Tensor<Float>(zeros: [])
     if let text = input.text {
-      latent += pool(text: perceive(text: text))
+      latent += pool(
+        text: text,
+        perceivedText: perceive(text: text, problem: problem),
+        problem: problem)
     }
     latent = reason(over: latent, problem: problem)
     return classify(reasoningOutput: latent, problem: problem)
@@ -61,7 +65,121 @@ public enum Concept: Int, CaseIterable {
   case neutral = 2
 }
 
-public enum Problem {
-  case classify(context: Context, concepts: [Concept])
-  case label(context: Context, concepts: [Concept])
+public protocol Problem {
+  var context: Context { get }
+}
+
+public struct Classification: Problem {
+  public let context: Context
+  public let concepts: [Concept]
+
+  public init(context: Context, concepts: [Concept]) {
+    self.context = context
+    self.concepts = concepts
+  }
+}
+
+public struct Labeling: Problem {
+  public let context: Context
+  public let concepts: [Concept]
+
+  public init(context: Context, concepts: [Concept]) {
+    self.context = context
+    self.concepts = concepts
+  }
+}
+
+public struct SimpleArchitecture: Architecture {
+  public var contextEmbeddings: Tensor<Float>
+  public var conceptEmbeddings: Tensor<Float>
+  public var textPerception: BERT<Float>
+  public var textPoolingMultiHeadAttention: MultiHeadAttention<Float>
+  public var reasoning: ContextualizedLayer<Sequential<Dense<Float>, Dense<Float>>, Dense<Float>>
+
+  public init(bertConfiguration: BERT<Float>.Configuration) {
+    let problemEmbeddingSize = bertConfiguration.hiddenSize
+    let initializer = truncatedNormalInitializer(
+      standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
+    self.contextEmbeddings = initializer([Context.allCases.count, problemEmbeddingSize])
+    self.conceptEmbeddings = initializer([Concept.allCases.count, problemEmbeddingSize])
+    self.textPerception = BERT(configuration: bertConfiguration)
+    self.textPoolingMultiHeadAttention = MultiHeadAttention<Float>(
+      sourceSize: problemEmbeddingSize,
+      targetSize: bertConfiguration.hiddenSize,
+      headCount: bertConfiguration.attentionHeadCount,
+      headSize: bertConfiguration.hiddenSize / bertConfiguration.attentionHeadCount,
+      queryActivation: { x in x },
+      keyActivation: { x in x },
+      valueActivation: { x in x },
+      attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
+      matrixResult: true)
+    let reasoningBase = Sequential(
+      Dense<Float>(
+        inputSize: bertConfiguration.hiddenSize,
+        outputSize: 2 * bertConfiguration.hiddenSize,
+        activation: bertConfiguration.intermediateActivation.activationFunction(),
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
+      Dense<Float>(
+        inputSize: 2 * bertConfiguration.hiddenSize,
+        outputSize: bertConfiguration.hiddenSize,
+        activation: bertConfiguration.intermediateActivation.activationFunction(),
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+    self.reasoning = ContextualizedLayer(
+      base: reasoningBase,
+      generator: Dense<Float>(
+        inputSize: problemEmbeddingSize,
+        outputSize: reasoningBase.parameterCount,
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+  }
+
+  @differentiable
+  public func perceive(text: TextBatch, problem: Problem) -> Tensor<Float> {
+    textPerception(text)
+  }
+
+  @differentiable
+  public func pool(
+    text: TextBatch,
+    perceivedText: Tensor<Float>,
+    problem: Problem
+  ) -> Tensor<Float> {
+    let query = contextEmbeddings[problem.context.rawValue]
+      .expandingShape(at: 0, 1)
+      .tiled(multiples: Tensor([Int32(perceivedText.shape[0]), 1, 1]))
+    let attentionInput = AttentionInput(
+      source: query,
+      target: perceivedText,
+      mask: Tensor<Float>(text.mask.expandingShape(at: -1)))
+    return textPoolingMultiHeadAttention(attentionInput)
+  }
+
+  @differentiable
+  public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
+    let context = contextEmbeddings[problem.context.rawValue]
+    let contextualizedInput = ContextualizedInput(input: input, context: context)
+    return reasoning(contextualizedInput)
+  }
+
+  @differentiable
+  public func classify(reasoningOutput: Tensor<Float>, problem: Classification) -> Tensor<Float> {
+    let conceptIds = withoutDerivative(at: problem.concepts) {
+      Tensor($0.map { Int32($0.rawValue) })
+    }
+    let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
+    let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
+    return logSoftmax(logits)
+  }
+
+  @differentiable
+  public func label(reasoningOutput: Tensor<Float>, problem: Labeling) -> Tensor<Float> {
+    let conceptIds = withoutDerivative(at: problem.concepts) {
+      Tensor($0.map { Int32($0.rawValue) })
+    }
+    let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
+    let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
+    return logSigmoid(logits)
+  }
 }
