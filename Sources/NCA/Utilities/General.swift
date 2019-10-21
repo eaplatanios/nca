@@ -19,6 +19,8 @@ import TensorFlow
 
 internal let logger = Logger(label: "NCA")
 
+public typealias ParameterInitializer<Scalar: TensorFlowScalar> = (TensorShape) -> Tensor<Scalar>
+
 public typealias Activation<Scalar: TensorFlowFloatingPoint> =
   @differentiable (Tensor<Scalar>) -> Tensor<Scalar>
 

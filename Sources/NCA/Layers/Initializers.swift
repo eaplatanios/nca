@@ -14,7 +14,7 @@
 
 import TensorFlow
 
-public typealias ParameterInitializer<Scalar: TensorFlowScalar> = (TensorShape) -> Tensor<Scalar>
+// TODO: !!! Remove once upstreamed.
 
 /// Returns a function that creates a tensor by initializing all its values to zeros.
 public func zerosInitializer<Scalar: TensorFlowFloatingPoint>() -> ParameterInitializer<Scalar> {
@@ -65,8 +65,8 @@ public func truncatedNormalInitializer<Scalar: TensorFlowFloatingPoint>(
 }
 
 extension Tensor where Scalar: TensorFlowFloatingPoint {
-  /// Creates a tensor with the specified shape, randomly sampling scalar values from a normal
-  /// distribution.
+  /// Creates a tensor with the specified shape, randomly sampling scalar values from a truncated
+  /// Normal distribution.
   ///
   /// - Parameters:
   ///   - shape: The dimensions of the tensor.
