@@ -16,7 +16,7 @@ import Foundation
 import TensorFlow
 import ZIPFoundation
 
-public struct CoLA: Task {
+public struct MRPC: Task {
   public let directoryURL: URL
   public let trainExamples: [Example]
   public let devExamples: [Example]
@@ -26,7 +26,7 @@ public struct CoLA: Task {
   public let batchSize: Int
 
   public let problem: Classification = Classification(
-    context: .grammaticalCorrectness,
+    context: .paraphrasing,
     concepts: [.positive, .negative])
 
   private typealias DataBatch = (inputs: TextBatch, labels: Tensor<Int32>?)
@@ -74,38 +74,63 @@ public struct CoLA: Task {
   }
 }
 
-extension CoLA {
+extension MRPC {
   public init(
     taskDirectoryURL: URL,
     textTokenizer: FullTextTokenizer,
     maxSequenceLength: Int,
     batchSize: Int
   ) throws {
-    self.directoryURL = taskDirectoryURL.appendingPathComponent("CoLA")
+    self.directoryURL = taskDirectoryURL.appendingPathComponent("MRPC")
 
     let dataURL = directoryURL.appendingPathComponent("data")
-    let compressedDataURL = dataURL.appendingPathComponent("downloaded-data.zip")
+    let trainDataURL = dataURL.appendingPathComponent("msr_paraphrase_train.txt")
+    let testDataURL = dataURL.appendingPathComponent("msr_paraphrase_test.txt")
+    let devIdsURL = dataURL.appendingPathComponent("mrpc_dev_ids.tsv")
 
     // Download the data, if necessary.
-    try maybeDownload(from: CoLA.url, to: compressedDataURL)
+    try maybeDownload(from: MRPC.trainDataURL, to: trainDataURL)
+    try maybeDownload(from: MRPC.testDataURL, to: testDataURL)
+    try maybeDownload(from: MRPC.devIdsURL, to: devIdsURL)
 
-    // Extract the data, if necessary.
-    let extractedDirectoryURL = compressedDataURL.deletingPathExtension()
-    if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-      try FileManager.default.unzipItem(at: compressedDataURL, to: extractedDirectoryURL)
+    // Load the dev IDs (which correspond to IDs in the train data file).
+    let devIdsLines = try String(contentsOf: devIdsURL, encoding: .utf8).split { $0.isNewline }
+    let devIds = devIdsLines.map { line -> String in
+      let parts = line.split(separator: "\t")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      return "\(parts[0]):\(parts[1])"
     }
 
-    // Load the data files into arrays of examples.
-    let dataFilesURL = extractedDirectoryURL.appendingPathComponent("CoLA")
-    self.trainExamples = try CoLA.load(
-      fromFile: dataFilesURL.appendingPathComponent("train.tsv"),
-      fileType: .train)
-    self.devExamples = try CoLA.load(
-      fromFile: dataFilesURL.appendingPathComponent("dev.tsv"),
-      fileType: .dev)
-    self.testExamples = try CoLA.load(
-      fromFile: dataFilesURL.appendingPathComponent("test.tsv"),
-      fileType: .test)
+    // Load the train and dev examples.
+    var trainExamples = [Example]()
+    var devExamples = [Example]()
+    let trainLines = try String(contentsOf: trainDataURL, encoding: .utf8).split { $0.isNewline }
+    for line in trainLines.dropFirst() {
+      let parts = line.split(separator: "\t")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      let example = Example(
+        ids: (parts[1], parts[2]),
+        sentences: (parts[3], parts[4]),
+        isParaphrase: parts[0] == "1")
+      if devIds.contains(example.id) {
+        devExamples.append(example)
+      } else {
+        trainExamples.append(example)
+      }
+    }
+    self.trainExamples = trainExamples
+    self.devExamples = devExamples
+
+    // Load the test examples.
+    let testLines = try String(contentsOf: testDataURL, encoding: .utf8).split { $0.isNewline }
+    self.testExamples = testLines.dropFirst().map { line in
+      let parts = line.split { $0 == "\t" }
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      return Example(
+        ids: (parts[1], parts[2]),
+        sentences: (parts[3], parts[4]),
+        isParaphrase: parts[0] == "1")
+    }
 
     self.textTokenizer = textTokenizer
     self.maxSequenceLength = maxSequenceLength
@@ -113,7 +138,7 @@ extension CoLA {
 
     // Create a function that converts examples to data batches.
     let exampleMapFn = { example in
-      CoLA.convertExampleToBatch(
+      MRPC.convertExampleToBatch(
         example,
         maxSequenceLength: maxSequenceLength,
         textTokenizer: textTokenizer)
@@ -142,7 +167,7 @@ extension CoLA {
     textTokenizer: FullTextTokenizer
   ) -> (inputs: TextBatch, labels: Tensor<Int32>?) {
     let tokenized = preprocessText(
-      sequences: [example.sentence],
+      sequences: [example.sentences.0, example.sentences.1],
       maxSequenceLength: maxSequenceLength,
       usingTokenizer: textTokenizer)
     return (
@@ -150,7 +175,7 @@ extension CoLA {
         tokenIds: Tensor(tokenized.tokenIds.map(Int32.init)).expandingShape(at: 0),
         tokenTypeIds: Tensor(tokenized.tokenTypeIds.map(Int32.init)).expandingShape(at: 0),
         mask: Tensor(tokenized.mask.map { $0 ? 1 : 0 }).expandingShape(at: 0)),
-      labels: example.isAcceptable.map { Tensor($0 ? 1 : 0).expandingShape(at: 0) })
+      labels: example.isParaphrase.map { Tensor($0 ? 1 : 0).expandingShape(at: 0) })
   }
 }
 
@@ -158,82 +183,63 @@ extension CoLA {
 // Data
 //===-----------------------------------------------------------------------------------------===//
 
-extension CoLA {
-  /// CoLA example.
+extension MRPC {
+  /// MRPC example.
   public struct Example {
-    public let id: String
-    public let sentence: String
-    public let isAcceptable: Bool?
+    public let ids: (String, String)
+    public let sentences: (String, String)
+    public let isParaphrase: Bool?
 
-    public init(id: String, sentence: String, isAcceptable: Bool?) {
-      self.id = id
-      self.sentence = sentence
-      self.isAcceptable = isAcceptable
+    public var id: String { "\(ids.0):\(ids.1)" }
+
+    public init(ids: (String, String), sentences: (String, String), isParaphrase: Bool?) {
+      self.ids = ids
+      self.sentences = sentences
+      self.isParaphrase = isParaphrase
     }
   }
 
-  /// URL pointing to the downloadable ZIP file that contains the CoLA dataset.
-  private static let url: URL = URL(string: String(
+  /// URL pointing to the downloadable text file that contains the train sentences.
+  private static let trainDataURL: URL = URL(string: String(
+    "https://dl.fbaipublicfiles.com/senteval/senteval_data/msr_paraphrase_train.txt"))!
+
+  /// URL pointing to the downloadable text file that contains the test sentences.
+  private static let testDataURL: URL = URL(string: String(
+    "https://dl.fbaipublicfiles.com/senteval/senteval_data/msr_paraphrase_test.txt"))!
+
+  /// URL pointing to the downloadable text file that contains the dev-set IDs.
+  private static let devIdsURL: URL = URL(string: String(
     "https://firebasestorage.googleapis.com/v0/b/mtl-sentence-representations.appspot.com/" +
-      "o/data%2FCoLA.zip?alt=media&token=46d5e637-3411-4188-bc44-5809b5bfb5f4"))!
-
-  internal enum FileType: String {
-    case train = "train", dev = "dev", test = "test"
-  }
-
-  internal static func load(fromFile fileURL: URL, fileType: FileType) throws -> [Example] {
-    let lines = try String(contentsOf: fileURL, encoding: .utf8).split { $0.isNewline }
-
-    if fileType == .test {
-      // The test data file has a header.
-      return lines.dropFirst().enumerated().map { (i, line) in
-        let lineParts = line.components(separatedBy: "\t")
-        return Example(
-          id: "\(fileType.rawValue)-\(i)",
-          sentence: lineParts[1],
-          isAcceptable: nil)
-      }
-    }
-
-    return lines.enumerated().map { (i, line) in
-      let lineParts = line.components(separatedBy: "\t")
-      return Example(
-        id: "\(fileType.rawValue)-\(i)",
-        sentence: lineParts[3],
-        isAcceptable: lineParts[1] == "1")
-    }
-  }
+      "o/data%2Fmrpc_dev_ids.tsv?alt=media&token=ec5c0836-31d5-48f4-b431-7480817f1adc"))!
 }
 
 //===-----------------------------------------------------------------------------------------===//
 // Evaluation
 //===-----------------------------------------------------------------------------------------===//
 
-extension CoLA {
+extension MRPC {
   public struct EvaluationResult: Result {
-    public let matthewsCorrelationCoefficient: Float
+    public let f1Score: Float
     public let accuracy: Float
 
-    public init(matthewsCorrelationCoefficient: Float, accuracy: Float) {
-      self.matthewsCorrelationCoefficient = matthewsCorrelationCoefficient
+    public init(f1Score: Float, accuracy: Float) {
+      self.f1Score = f1Score
       self.accuracy = accuracy
     }
 
     public var summary: String {
       """
-      Matthew's Correlation Coefficient: \(matthewsCorrelationCoefficient)
-      Accuracy:                          \(accuracy)
+      F1 Score: \(f1Score)
+      Accuracy: \(accuracy)
       """
     }
   }
 
   public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
     let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.isAcceptable! }
+    let groundTruth = examples.map { $0.isParaphrase! }
     return EvaluationResult(
-      matthewsCorrelationCoefficient: NCA.matthewsCorrelationCoefficient(
-        predictions: predictions,
-        groundTruth: groundTruth),
+      f1Score: NCA.f1Score(predictions: predictions, groundTruth: groundTruth),
       accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
   }
 }

@@ -18,6 +18,27 @@ public func accuracy<T: Equatable>(predictions: [T], groundTruth: [T]) -> Float 
   return nominator / denominator
 }
 
+/// Computes the F1 score.
+public func f1Score(predictions: [Bool], groundTruth: [Bool]) -> Float {
+  var tp = 0 // True positives.
+  var tn = 0 // True negatives.
+  var fp = 0 // False positives.
+  var fn = 0 // False negatives.
+  for (prediction, truth) in zip(predictions, groundTruth) {
+    switch (prediction, truth) {
+    case (false, false): tn += 1
+    case (false, true): fn += 1
+    case (true, false): fp += 1
+    case (true, true): tp += 1
+    }
+  }
+  let precision = tp + fp > 0 ? Float(tp) / Float(tp + fp) : 1
+  let recall = tp + fn > 0 ? Float(tp) / Float(tp + fn) : 1
+  let nominator = precision * recall
+  let denominator = precision + recall
+  return denominator == 0.0 ? 0.0 : 2 * nominator / denominator
+}
+
 /// Computes the Matthews correlation coefficient.
 ///
 /// The Matthews correlation coefficient is more informative than other confusion matrix measures

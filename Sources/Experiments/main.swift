@@ -37,15 +37,27 @@ let textTokenizer = FullTextTokenizer(
   unknownToken: "[UNK]",
   maxTokenLength: bertConfiguration.maxSequenceLength)
 
+var mrpc = try! MRPC(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: 50, // bertConfiguration.maxSequenceLength,
+  batchSize: 32)
 var cola = try! CoLA(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 50, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 
 var architecture = SimpleArchitecture(bertConfiguration: bertConfiguration)
 architecture.textPerception.load(fromTensorFlowCheckpoint: bertCheckpointURL)
 
+var mrpcOptimizer = Adam(
+  for: architecture,
+  learningRate: 1e-3,
+  beta1: 0.9,
+  beta2: 0.99,
+  epsilon: 1e-8,
+  decay: 0)
 var colaOptimizer = Adam(
   for: architecture,
   learningRate: 1e-3,
@@ -56,7 +68,34 @@ var colaOptimizer = Adam(
 
 for step in 1..<10000 {
   print("Step \(step)")
-  if step % 100 == 0 { print(cola.evaluate(using: architecture).summary) }
-  let loss = cola.update(architecture: &architecture, using: &colaOptimizer)
-  print("\tLoss = \(loss)")
+  if step % 1 == 0 {
+    let mrpcResults = mrpc.evaluate(using: architecture).summary
+//    let colaResults = cola.evaluate(using: architecture).summary
+    let results =
+      """
+      ================
+      Evaluation
+      ================
+      MRPC Evaluation:
+      \(mrpcResults.replacingOccurrences(of: "\n", with: "\n\t"))
+      ================
+      """
+//    let results =
+//      """
+//      ================
+//      Evaluation
+//      ================
+//      MRPC Evaluation:
+//      \(mrpcResults.replacingOccurrences(of: "\n", with: "\n\t"))
+//      ----------------
+//      CoLA Evaluation:
+//      \(colaResults.replacingOccurrences(of: "\n", with: "\n\t"))
+//      ================
+//      """
+    print(results)
+  }
+  let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
+//  let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
+  print("\tLoss = \(mrpcLoss)")
+//  print("\tLoss = \(colaLoss)")
 }

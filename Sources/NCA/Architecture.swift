@@ -62,6 +62,7 @@ public struct ArchitectureInput {
 
 public enum Context: Int, CaseIterable {
   case grammaticalCorrectness = 0
+  case paraphrasing = 1
 }
 
 public enum Concept: Int, CaseIterable {
