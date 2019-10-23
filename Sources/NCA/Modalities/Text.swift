@@ -16,7 +16,7 @@ import Foundation
 import TensorFlow
 
 /// Tokenized text passage.
-public struct TextBatch {
+public struct TextBatch: KeyPathIterable {
   /// IDs that correspond to the vocabulary used while tokenizing.
   /// The shape of this tensor is `[batchSize, maxSequenceLength]`.
   public let tokenIds: Tensor<Int32>

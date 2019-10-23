@@ -41,6 +41,16 @@ extension IteratorProtocol {
   }
 }
 
+extension IteratorProtocol where Element: KeyPathIterable {
+  /// Returns an iterator that batches elements of this iterator.
+  ///
+  /// - Parameters:
+  ///   - batchSize: Batch size.
+  public func batched(batchSize: Int) -> BatchIterator<Self> {
+    BatchIterator(self, batchSize: batchSize)
+  }
+}
+
 /// Iterator that maps elements of another iterator using the provided function.
 public struct MapIterator<Base: IteratorProtocol, MappedElement>: IteratorProtocol {
   private var iterator: Base
@@ -100,11 +110,37 @@ public struct ShuffleIterator<Base: IteratorProtocol>: IteratorProtocol {
   private mutating func fillBuffer() {
     buffer = []
     bufferIndex = 0
-    while let element = iterator.next(), (bufferIndex < bufferSize || bufferSize == -1) {
+    while let element = iterator.next(), bufferIndex < bufferSize || bufferSize == -1 {
       buffer.append(element)
       bufferIndex += 1
     }
     bufferIndex = 0
+  }
+}
+
+/// Iterator that batches elements from another iterator.
+public struct BatchIterator<Base: IteratorProtocol>: IteratorProtocol
+where Base.Element: KeyPathIterable {
+  private let batchSize: Int
+  private var iterator: Base
+  private var buffer: [Base.Element]
+
+  public init(_ iterator: Base, batchSize: Int) {
+    self.batchSize = batchSize
+    self.iterator = iterator
+    self.buffer = []
+    self.buffer.reserveCapacity(batchSize)
+  }
+
+  public mutating func next() -> Base.Element? {
+    while let element = iterator.next(), buffer.count < batchSize {
+      buffer.append(element)
+    }
+    if buffer.isEmpty { return nil }
+    let batch = Base.Element.batch(buffer)
+    buffer = []
+    buffer.reserveCapacity(batchSize)
+    return batch
   }
 }
 

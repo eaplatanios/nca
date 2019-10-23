@@ -29,11 +29,10 @@ public struct MRPC: Task {
     context: .paraphrasing,
     concepts: [.positive, .negative])
 
-  private typealias DataBatch = (inputs: TextBatch, labels: Tensor<Int32>?)
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
-  private typealias TrainDataIterator = MapIterator<RepeatExampleIterator, DataBatch>
-  private typealias DevDataIterator = MapIterator<ExampleIterator, DataBatch>
+  private typealias TrainDataIterator = BatchIterator<MapIterator<RepeatExampleIterator, DataBatch>>
+  private typealias DevDataIterator = BatchIterator<MapIterator<ExampleIterator, DataBatch>>
   private typealias TestDataIterator = DevDataIterator
 
   private var trainDataIterator: TrainDataIterator
@@ -149,8 +148,13 @@ extension MRPC {
       .repeated()
       .shuffled(bufferSize: 1000)
       .map(exampleMapFn)
-    self.devDataIterator = devExamples.makeIterator().map(exampleMapFn)
-    self.testDataIterator = testExamples.makeIterator().map(exampleMapFn)
+      .batched(batchSize: batchSize)
+    self.devDataIterator = devExamples.makeIterator()
+      .map(exampleMapFn)
+      .batched(batchSize: batchSize)
+    self.testDataIterator = testExamples.makeIterator()
+      .map(exampleMapFn)
+      .batched(batchSize: batchSize)
   }
 
   /// Converts an example to a data batch.
@@ -165,17 +169,17 @@ extension MRPC {
     _ example: Example,
     maxSequenceLength: Int,
     textTokenizer: FullTextTokenizer
-  ) -> (inputs: TextBatch, labels: Tensor<Int32>?) {
+  ) -> DataBatch {
     let tokenized = preprocessText(
       sequences: [example.sentences.0, example.sentences.1],
       maxSequenceLength: maxSequenceLength,
       usingTokenizer: textTokenizer)
-    return (
+    return DataBatch(
       inputs: TextBatch(
-        tokenIds: Tensor(tokenized.tokenIds.map(Int32.init)).expandingShape(at: 0),
-        tokenTypeIds: Tensor(tokenized.tokenTypeIds.map(Int32.init)).expandingShape(at: 0),
-        mask: Tensor(tokenized.mask.map { $0 ? 1 : 0 }).expandingShape(at: 0)),
-      labels: example.isParaphrase.map { Tensor($0 ? 1 : 0).expandingShape(at: 0) })
+        tokenIds: Tensor(tokenized.tokenIds.map(Int32.init)),
+        tokenTypeIds: Tensor(tokenized.tokenTypeIds.map(Int32.init)),
+        mask: Tensor(tokenized.mask.map { $0 ? 1 : 0 })),
+      labels: example.isParaphrase.map { Tensor($0 ? 1 : 0) })
   }
 }
 
@@ -196,6 +200,17 @@ extension MRPC {
       self.ids = ids
       self.sentences = sentences
       self.isParaphrase = isParaphrase
+    }
+  }
+
+  /// MRPC data batch.
+  public struct DataBatch: KeyPathIterable {
+    public let inputs: TextBatch
+    public let labels: Tensor<Int32>?
+
+    public init(inputs: TextBatch, labels: Tensor<Int32>?) {
+      self.inputs = inputs
+      self.labels = labels
     }
   }
 
