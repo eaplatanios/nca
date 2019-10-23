@@ -13,8 +13,8 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-package-manager.git", from: "0.4.0"),
-    .package(url: "https://github.com/jkandzi/Progress.swift", from: "0.4.0"),
-    .package(url: "https://github.com/weichsel/ZIPFoundation/", .branch("master")),
+    .package(url: "https://github.com/jkandzi/Progress.swift.git", from: "0.4.0"),
+    .package(url: "https://github.com/weichsel/ZIPFoundation.git", .branch("master")),
   ],
   targets: [
     .target(name: "NCA", dependencies: ["Logging", "Progress", "ZIPFoundation"]),

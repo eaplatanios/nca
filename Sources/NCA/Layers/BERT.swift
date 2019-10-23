@@ -53,20 +53,19 @@ public struct BERT<Scalar: TensorFlowFloatingPoint & Codable>: Module {
     // effectively contains an embedding table for positions
     // [0, 1, 2, ..., maxPositionEmbeddings - 1], and the current sequence may have positions
     // [0, 1, 2, ..., sequenceLength - 1], so we can just perform a slice.
-    self.positionEmbedding = Embedding<Scalar>(
+    self.positionEmbedding = Embedding(
       vocabularySize: configuration.maxSequenceLength,
       embeddingSize: configuration.hiddenSize,
       embeddingsInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor<Scalar>(configuration.initializerStandardDeviation)),
+        standardDeviation: Tensor(configuration.initializerStandardDeviation)),
       useOneHotEmbeddings: false)
 
     self.embeddingLayerNormalization = LayerNormalization<Scalar>(
       featureCount: configuration.hiddenSize,
       axis: -1)
-    self.embeddingDropout = Dropout<Scalar>(
-      probability: Scalar(configuration.hiddenDropoutProbability))
+    self.embeddingDropout = Dropout(probability: configuration.hiddenDropoutProbability)
 
-    self.transformerEncoder = TransformerEncoder<Scalar>(
+    self.transformerEncoder = TransformerEncoder(
       hiddenSize: configuration.hiddenSize,
       layerCount: configuration.hiddenLayerCount,
       attentionHeadCount: configuration.attentionHeadCount,

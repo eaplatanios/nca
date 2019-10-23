@@ -108,9 +108,9 @@ public struct SimpleArchitecture: Architecture {
       targetSize: bertConfiguration.hiddenSize,
       headCount: bertConfiguration.attentionHeadCount,
       headSize: bertConfiguration.hiddenSize / bertConfiguration.attentionHeadCount,
-      queryActivation: { x in x },
-      keyActivation: { x in x },
-      valueActivation: { x in x },
+      queryActivation: { $0 },
+      keyActivation: { $0 },
+      valueActivation: { $0 },
       attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
       matrixResult: true)
     let reasoningBase = Sequential(

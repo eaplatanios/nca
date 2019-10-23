@@ -94,7 +94,7 @@ public struct TransformerEncoder<Scalar: TensorFlowFloatingPoint>: Layer {
   ) {
     self.hiddenSize = hiddenSize
     self.encoderLayers = (0..<layerCount).map { _ in
-      TransformerEncoderLayer<Scalar>(
+      TransformerEncoderLayer(
         hiddenSize: hiddenSize,
         attentionHeadCount: attentionHeadCount,
         attentionQueryActivation: attentionQueryActivation,
@@ -160,7 +160,7 @@ extension TransformerEncoder {
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
 public struct TransformerEncoderLayer<Scalar: TensorFlowFloatingPoint>: Layer {
   @noDerivative public let hiddenSize: Int
-  @noDerivative public var intermediateActivation: Activation<Scalar>
+  @noDerivative public let intermediateActivation: Activation<Scalar>
 
   public var multiHeadAttention: MultiHeadAttention<Scalar>
   public var hiddenDropout: Dropout<Scalar>
@@ -226,7 +226,7 @@ public struct TransformerEncoderLayer<Scalar: TensorFlowFloatingPoint>: Layer {
         "attention head count (\(attentionHeadCount)).")
     self.hiddenSize = hiddenSize
     self.intermediateActivation = intermediateActivation
-    self.multiHeadAttention = MultiHeadAttention<Scalar>(
+    self.multiHeadAttention = MultiHeadAttention(
       sourceSize: hiddenSize,
       targetSize: hiddenSize,
       headCount: attentionHeadCount,
@@ -258,7 +258,7 @@ public struct TransformerEncoderLayer<Scalar: TensorFlowFloatingPoint>: Layer {
 
   @differentiable
   public func callAsFunction(_ input: TransformerInput<Scalar>) -> Tensor<Scalar> {
-    let attentionInput = AttentionInput<Scalar>(
+    let attentionInput = AttentionInput(
       source: input.sequence,
       target: input.sequence,
       mask: input.attentionMask)

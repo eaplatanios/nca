@@ -106,7 +106,7 @@ public struct MultiHeadAttention<Scalar: TensorFlowFloatingPoint>: Layer {
     queryActivation: @escaping Activation<Scalar> = { $0 },
     keyActivation: @escaping Activation<Scalar> = { $0 },
     valueActivation: @escaping Activation<Scalar> = { $0 },
-    attentionDropoutProbability: Scalar = Scalar(0),
+    attentionDropoutProbability: Scalar = 0,
     matrixResult: Bool = false,
     queryWeightInitializer: ParameterInitializer<Scalar> = defaultWeightInitializer,
     queryBiasInitializer: ParameterInitializer<Scalar> = defaultBiasInitializer,
@@ -129,7 +129,7 @@ public struct MultiHeadAttention<Scalar: TensorFlowFloatingPoint>: Layer {
     self.keyBias = keyBiasInitializer([headCount * headSize])
     self.valueWeight = valueWeightInitializer([targetSize, headCount * headSize])
     self.valueBias = valueBiasInitializer([headCount * headSize])
-    self.attentionDropout = Dropout<Scalar>(probability: attentionDropoutProbability)
+    self.attentionDropout = Dropout(probability: attentionDropoutProbability)
   }
 
   @differentiable
