@@ -17,19 +17,25 @@ import TensorFlow
 /// Input to a transformer layer.
 public struct TransformerInput<Scalar: TensorFlowFloatingPoint>: Differentiable {
   /// Sequence that the transformer encoder operates over. The shape of this tensor is
-  /// `[batchSize, sequenceLength, depth]`.
+  /// `[batchSize, sequenceLength, depth]` or `[batchSize, sequenceLength * depth]`.
   public var sequence: Tensor<Scalar>
 
   /// Mask to apply on the attention scores. This is a tensor with shape
-  /// `[batchSize, sourceSequenceLength, targetSequenceLength]`. The values should be `1` or `0`.
+  /// `[batchSize, sourceSequenceLength, targetSequenceLength]` or
+  /// `[batchSize, sourceSequenceLength * targetSequenceLength]`. The values should be `1` or `0`.
   /// The attention scores will effectively be set to negative infinity for any positions in the
   /// mask that are set to `0`, and will be unchanged for positions that are set to `1`.
   public var attentionMask: Tensor<Scalar>
 
+  /// The batch size of this input. This is optional because it is only needed if the input
+  /// sequences have been reshaped to matrices.
+  @noDerivative let batchSize: Int?
+
   @differentiable
-  public init(sequence: Tensor<Scalar>, attentionMask: Tensor<Scalar>) {
+  public init(sequence: Tensor<Scalar>, attentionMask: Tensor<Scalar>, batchSize: Int? = nil) {
     self.sequence = sequence
     self.attentionMask = attentionMask
+    self.batchSize = batchSize
   }
 }
 
@@ -38,10 +44,13 @@ public struct TransformerInput<Scalar: TensorFlowFloatingPoint>: Differentiable 
 /// - Note: This layer returns a tensor with shape `[batchSize, sequenceLength, hiddenSize]`.
 ///
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
-public struct TransformerEncoder<Scalar: TensorFlowFloatingPoint>: Layer {
+public struct TransformerEncoder: Layer { // <Scalar: TensorFlowFloatingPoint>: Layer {
+  // TODO: !!! Convert to a generic constraint once TF-427 is resolved.
+  public typealias Scalar = Float
+
   @noDerivative public let hiddenSize: Int
 
-  public var encoderLayers: [TransformerEncoderLayer<Scalar>]
+  public var encoderLayers: [TransformerEncoderLayer]
 
   /// Creates a transformer encoder.
   ///
@@ -131,15 +140,16 @@ public struct TransformerEncoder<Scalar: TensorFlowFloatingPoint>: Layer {
     // We keep the representation as a 2-D tensor to avoid reshaping it back and forth from a 3-D
     // tensor to a 2-D tensor. Reshapes are normally free on GPUs/CPUs but may not be free on TPUs,
     // and so we want to minimize them to help the optimizer.
-    let transformerInput = TransformerInput(
-      sequence: input.sequence.reshapedToMatrix(),
-      attentionMask: input.attentionMask)
+    var transformerInput = input.sequence.reshapedToMatrix()
+    let batchSize = input.sequence.shape[0]
+    for layerIndex in 0..<(withoutDerivative(at: encoderLayers) { $0.count }) {
+      transformerInput = encoderLayers[layerIndex](TransformerInput(
+        sequence: transformerInput,
+        attentionMask: input.attentionMask,
+        batchSize: batchSize))
+    }
 
-    return encoderLayers.differentiableReduce(transformerInput) {
-      TransformerInput(
-        sequence: $1($0),
-        attentionMask: $0.attentionMask)
-    }.sequence.reshapedFromMatrix(originalShape: input.sequence.shape)
+    return transformerInput.reshapedFromMatrix(originalShape: input.sequence.shape)
   }
 }
 
@@ -158,11 +168,14 @@ extension TransformerEncoder {
 /// Transformer encoder layer.
 ///
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
-public struct TransformerEncoderLayer<Scalar: TensorFlowFloatingPoint>: Layer {
+public struct TransformerEncoderLayer: Layer { // <Scalar: TensorFlowFloatingPoint>: Layer {
+  // TODO: !!! Convert to a generic constraint once TF-427 is resolved.
+  public typealias Scalar = Float
+
   @noDerivative public let hiddenSize: Int
   @noDerivative public let intermediateActivation: Activation<Scalar>
 
-  public var multiHeadAttention: MultiHeadAttention<Scalar>
+  public var multiHeadAttention: MultiHeadAttention
   public var hiddenDropout: Dropout<Scalar>
   public var attentionWeight: Tensor<Scalar>
   public var attentionBias: Tensor<Scalar>
@@ -261,7 +274,8 @@ public struct TransformerEncoderLayer<Scalar: TensorFlowFloatingPoint>: Layer {
     let attentionInput = AttentionInput(
       source: input.sequence,
       target: input.sequence,
-      mask: input.attentionMask)
+      mask: input.attentionMask,
+      batchSize: input.batchSize)
     var attentionOutput = multiHeadAttention(attentionInput)
 
     // Run a linear projection of `hiddenSize` and then add a residual connection to the input.
@@ -274,7 +288,7 @@ public struct TransformerEncoderLayer<Scalar: TensorFlowFloatingPoint>: Layer {
     intermediateOutput = intermediateActivation(intermediateOutput)
 
     // Project back to `hiddenSize` and add the residual.
-    var output = matmul(attentionOutput, outputWeight) + outputBias
+    var output = matmul(intermediateOutput, outputWeight) + outputBias
     output = hiddenDropout(output)
     output = outputLayerNormalization(output + attentionOutput)
 

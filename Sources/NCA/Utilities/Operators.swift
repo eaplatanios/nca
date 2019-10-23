@@ -18,14 +18,14 @@ extension Tensor {
   /// Returns this tensor reshaped to a matrix (i.e., a rank-2 tensor).
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
   internal func reshapedToMatrix() -> Tensor {
-    reshaped(to: [-1, shape[-1]])
+    reshaped(to: [-1, shape[rank - 1]])
   }
 
   /// Returns this previously-reshaped rank-2 tensor reshaped back to its original shape.
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
   internal func reshapedFromMatrix(originalShape: TensorShape) -> Tensor {
     reshaped(to: TensorShape(
-      originalShape[0..<originalShape.count - 1].dimensions + [shape[-1]]))
+      originalShape[0..<originalShape.count - 1].dimensions + [shape[rank - 1]]))
   }
 
   /// Returns this previously-reshaped rank-2 tensor reshaped back to its original shape.
@@ -33,7 +33,7 @@ extension Tensor {
   internal func reshapedFromMatrix(originalShape: Tensor<Int32>) -> Tensor {
     reshaped(toShape: Tensor<Int32>(concatenating: [
       originalShape[0..<originalShape.shape[0] - 1],
-      Tensor<Int32>([Int32(shape[-1])])
+      Tensor<Int32>([Int32(shape[rank - 1])])
     ]))
   }
 }

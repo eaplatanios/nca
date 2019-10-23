@@ -86,7 +86,7 @@ extension Module {
     var index = 0
     for kp in other.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
       let shape = other[keyPath: kp].shape
-      newLayer[keyPath: kp] = flattened[index..<index + shape.contiguousSize]
+      newLayer[keyPath: kp] = flattened[0, index..<index + shape.contiguousSize]
       newLayer[keyPath: kp] = newLayer[keyPath: kp].reshaped(to: shape)
       index += shape.contiguousSize
     }
@@ -103,7 +103,7 @@ extension Module {
       for kp in v.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
         values.append(v[keyPath: kp].flattened())
       }
-      return Tensor(concatenating: values, alongAxis: -1)
+      return Tensor(concatenating: values, alongAxis: -1).expandingShape(at: 0)
     })
   }
 }

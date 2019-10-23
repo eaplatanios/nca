@@ -35,13 +35,18 @@ public protocol Architecture: Differentiable {
 extension Architecture {
   @differentiable
   public func classify(_ input: ArchitectureInput, problem: Classification) -> Tensor<Float> {
-    var latent = Tensor<Float>(zeros: [])
-    if let text = input.text {
-      latent += pool(
-        text: text,
-        perceivedText: perceive(text: text, problem: problem),
-        problem: problem)
-    }
+// TODO: !!! Swift compiler AutoDiff bug.
+//    var latent = Tensor<Float>(zeros: [])
+//    if let text = input.text {
+//      latent += pool(
+//        text: text,
+//        perceivedText: perceive(text: text, problem: problem),
+//        problem: problem)
+//    }
+    var latent = pool(
+      text: input.text!,
+      perceivedText: perceive(text: input.text!, problem: problem),
+      problem: problem)
     latent = reason(over: latent, problem: problem)
     return classify(reasoningOutput: latent, problem: problem)
   }
@@ -92,18 +97,18 @@ public struct Labeling: Problem {
 public struct SimpleArchitecture: Architecture {
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
-  public var textPerception: BERT<Float>
-  public var textPoolingMultiHeadAttention: MultiHeadAttention<Float>
+  public var textPerception: BERT
+  public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var reasoning: ContextualizedLayer<Sequential<Dense<Float>, Dense<Float>>, Dense<Float>>
 
-  public init(bertConfiguration: BERT<Float>.Configuration) {
+  public init(bertConfiguration: BERT.Configuration) {
     let problemEmbeddingSize = bertConfiguration.hiddenSize
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, problemEmbeddingSize])
     self.conceptEmbeddings = initializer([Concept.allCases.count, problemEmbeddingSize])
     self.textPerception = BERT(configuration: bertConfiguration)
-    self.textPoolingMultiHeadAttention = MultiHeadAttention<Float>(
+    self.textPoolingMultiHeadAttention = MultiHeadAttention(
       sourceSize: problemEmbeddingSize,
       targetSize: bertConfiguration.hiddenSize,
       headCount: bertConfiguration.attentionHeadCount,
@@ -152,13 +157,13 @@ public struct SimpleArchitecture: Architecture {
     let attentionInput = AttentionInput(
       source: query,
       target: perceivedText,
-      mask: Tensor<Float>(text.mask.expandingShape(at: -1)))
+      mask: Tensor<Float>(text.mask.expandingShape(at: 0)))
     return textPoolingMultiHeadAttention(attentionInput)
   }
 
   @differentiable
   public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
-    let context = contextEmbeddings[problem.context.rawValue]
+    let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
     let contextualizedInput = ContextualizedInput(input: input, context: context)
     return reasoning(contextualizedInput)
   }

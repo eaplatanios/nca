@@ -93,10 +93,10 @@ public func preprocessText(
   for (sequenceId, sequence) in sequences.enumerated() {
     for token in sequence {
       tokens.append(token)
-      tokenTypeIds.append(sequenceId - 1)
+      tokenTypeIds.append(sequenceId)
     }
     tokens.append("[SEP]")
-    tokenTypeIds.append(sequenceId - 1)
+    tokenTypeIds.append(sequenceId)
   }
   var tokenIds = tokens.map { tokenizer.vocabulary.tokensToIds[$0]! }
 
@@ -118,6 +118,8 @@ public func preprocessText(
 public struct Vocabulary {
   internal let tokensToIds: [String: Int]
   internal let idsToTokens: [Int: String]
+
+  public var count: Int { tokensToIds.count }
 
   public init(tokensToIds: [String: Int]) {
     self.tokensToIds = tokensToIds

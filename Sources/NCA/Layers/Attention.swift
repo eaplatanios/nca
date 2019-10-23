@@ -17,27 +17,40 @@ import TensorFlow
 /// Input to an attention layer.
 public struct AttentionInput<Scalar: TensorFlowFloatingPoint>: Differentiable {
   /// Source tensor that we are attending from, with shape
-  /// `[batchSize, sourceSequenceLength, sourceDepth]`.
+  /// `[batchSize, sourceSequenceLength, sourceDepth]` or
+  /// `[batchSize, sourceSequenceLength * sourceDepth]`.
   public var source: Tensor<Scalar>
 
   /// Target tensor that we are attending to, with shape
-  /// `[batchSize, targetSequenceLength, targetDepth]`.
+  /// `[batchSize, targetSequenceLength, targetDepth]` or
+  /// `[batchSize, targetSequenceLength * targetDepth]`.
   public var target: Tensor<Scalar>
 
   /// Mask to apply on the attention scores. This is a tensor with shape
-  /// `[batchSize, sourceSequenceLength, targetSequenceLength]`. The values should be `1` or `0`.
+  /// `[batchSize, sourceSequenceLength, targetSequenceLength]` or
+  /// `[batchSize, sourceSequenceLength * targetSequenceLength]`. The values should be `1` or `0`.
   /// The attention scores will effectively be set to negative infinity for any positions in the
   /// mask that are set to `0`, and will be unchanged for positions that are set to `1`.
   public var mask: Tensor<Scalar>
 
+  /// The batch size of this input. This is optional because it is only needed if the input
+  /// sequences have been reshaped to matrices.
+  @noDerivative let batchSize: Int?
+
   @differentiable
-  public init(source: Tensor<Scalar>, target: Tensor<Scalar>, mask: Tensor<Scalar>) {
+  public init(
+    source: Tensor<Scalar>,
+    target: Tensor<Scalar>,
+    mask: Tensor<Scalar>,
+    batchSize: Int? = nil
+  ) {
     precondition(
       source.rank == target.rank,
       "The rank of the attention source and target tensors must match.")
     self.source = source
     self.target = target
     self.mask = mask
+    self.batchSize = batchSize
   }
 }
 
@@ -60,7 +73,10 @@ public struct AttentionInput<Scalar: TensorFlowFloatingPoint>: Differentiable {
 /// rather than using separate tensors.
 ///
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
-public struct MultiHeadAttention<Scalar: TensorFlowFloatingPoint>: Layer {
+public struct MultiHeadAttention: Layer { // <Scalar: TensorFlowFloatingPoint>: Layer {
+  // TODO: !!! Convert to a generic constraint.
+  public typealias Scalar = Float
+
   @noDerivative public let sourceSize: Int
   @noDerivative public let targetSize: Int
   @noDerivative public let headCount: Int
@@ -134,15 +150,19 @@ public struct MultiHeadAttention<Scalar: TensorFlowFloatingPoint>: Layer {
 
   @differentiable
   public func callAsFunction(_ input: AttentionInput<Scalar>) -> Tensor<Scalar> {
+    precondition(
+      input.source.rank == 3 || input.batchSize != nil,
+      "Whenever the input is provided in matrix form, the batch size must also be provided.")
     // Scalar dimensions referenced here:
     //   - B = batch size (number of sequences)
     //   - F = `input.source` sequence length
     //   - T = `input.target` sequence length
     //   - N = number of attention heads
     //   - H = size per attention head
-    let B = input.source.shape[0]
-    let F = input.source.shape[1]
-    let T = input.target.shape[1]
+    let matrixInput = input.source.rank < 3
+    let B = matrixInput ? input.batchSize! : input.source.shape[0]
+    let F = matrixInput ? input.source.shape[0] / B : input.source.shape[1]
+    let T = matrixInput ? input.target.shape[0] / B : input.target.shape[1]
     let N = headCount
     let H = headSize
 
