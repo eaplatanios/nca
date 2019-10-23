@@ -205,8 +205,8 @@ extension MRPC {
 
   /// MRPC data batch.
   public struct DataBatch: KeyPathIterable {
-    public let inputs: TextBatch
-    public let labels: Tensor<Int32>?
+    public var inputs: TextBatch      // TODO: !!! Mutable in order to allow for batching.
+    public var labels: Tensor<Int32>? // TODO: !!! Mutable in order to allow for batching.
 
     public init(inputs: TextBatch, labels: Tensor<Int32>?) {
       self.inputs = inputs

@@ -19,15 +19,15 @@ import TensorFlow
 public struct TextBatch: KeyPathIterable {
   /// IDs that correspond to the vocabulary used while tokenizing.
   /// The shape of this tensor is `[batchSize, maxSequenceLength]`.
-  public let tokenIds: Tensor<Int32>
+  public var tokenIds: Tensor<Int32> // TODO: !!! Mutable in order to allow for batching.
 
   /// IDs of the token types (e.g., sentence A and sentence B in BERT).
   /// The shape of this tensor is `[batchSize, maxSequenceLength]`.
-  public let tokenTypeIds: Tensor<Int32>
+  public var tokenTypeIds: Tensor<Int32> // TODO: !!! Mutable in order to allow for batching.
 
   /// Mask over the sequence of tokens specifying which ones are "real" as opposed to "padding".
   /// The shape of this tensor is `[batchSize, maxSequenceLength]`.
-  public let mask: Tensor<Int32>
+  public var mask: Tensor<Int32> // TODO: !!! Mutable in order to allow for batching.
 }
 
 /// Tokenized text passage.

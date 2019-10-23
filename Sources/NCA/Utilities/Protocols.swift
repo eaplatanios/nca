@@ -42,6 +42,46 @@ extension KeyPathIterable {
     for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self) {
       result[keyPath: kp] = Tensor.batch(values.map { $0[keyPath: kp] })
     }
+    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<UInt8>?.self) {
+      let keyPathValues = values.map { $0[keyPath: kp] }
+      if keyPathValues[0] != nil {
+        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
+      } else {
+        result[keyPath: kp] = nil
+      }
+    }
+    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Int32>?.self) {
+      let keyPathValues = values.map { $0[keyPath: kp] }
+      if keyPathValues[0] != nil {
+        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
+      } else {
+        result[keyPath: kp] = nil
+      }
+    }
+    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Int64>?.self) {
+      let keyPathValues = values.map { $0[keyPath: kp] }
+      if keyPathValues[0] != nil {
+        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
+      } else {
+        result[keyPath: kp] = nil
+      }
+    }
+    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Float>?.self) {
+      let keyPathValues = values.map { $0[keyPath: kp] }
+      if keyPathValues[0] != nil {
+        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
+      } else {
+        result[keyPath: kp] = nil
+      }
+    }
+    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Double>?.self) {
+      let keyPathValues = values.map { $0[keyPath: kp] }
+      if keyPathValues[0] != nil {
+        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
+      } else {
+        result[keyPath: kp] = nil
+      }
+    }
     return result
   }
 }

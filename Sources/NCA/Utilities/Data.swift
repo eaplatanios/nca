@@ -133,8 +133,12 @@ where Base.Element: KeyPathIterable {
   }
 
   public mutating func next() -> Base.Element? {
-    while let element = iterator.next(), buffer.count < batchSize {
-      buffer.append(element)
+    while buffer.count < batchSize {
+      if let element = iterator.next() {
+        buffer.append(element)
+      } else {
+        break
+      }
     }
     if buffer.isEmpty { return nil }
     let batch = Base.Element.batch(buffer)

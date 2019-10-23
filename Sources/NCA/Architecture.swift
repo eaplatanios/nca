@@ -103,6 +103,7 @@ public struct SimpleArchitecture: Architecture {
   public var reasoning: ContextualizedLayer<Sequential<Dense<Float>, Dense<Float>>, Dense<Float>>
 
   public init(bertConfiguration: BERT.Configuration) {
+    // TODO: !!!!!! Make this much much smaller.
     let problemEmbeddingSize = bertConfiguration.hiddenSize
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
@@ -158,7 +159,7 @@ public struct SimpleArchitecture: Architecture {
     let attentionInput = AttentionInput(
       source: query,
       target: perceivedText,
-      mask: Tensor<Float>(text.mask.expandingShape(at: 0)))
+      mask: Tensor<Float>(text.mask.expandingShape(at: 1)))
     return textPoolingMultiHeadAttention(attentionInput)
   }
 
