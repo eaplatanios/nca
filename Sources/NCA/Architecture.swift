@@ -14,7 +14,8 @@
 
 import TensorFlow
 
-public protocol Architecture: Differentiable {
+public protocol Architecture: Differentiable, KeyPathIterable
+where TangentVector: KeyPathIterable {
   @differentiable
   func perceive(text: TextBatch, problem: Problem) -> Tensor<Float>
 
@@ -106,6 +107,7 @@ public struct SimpleArchitecture: Architecture {
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: Dense<Float>
   public var reasoning: ContextualizedLayer<Sequential<Dense<Float>, Dense<Float>>, Dense<Float>>
+  public var reasoningLayerNormalization: ContextualizedLayer<LayerNormalization<Float>, Dense<Float>>
 
   public init(
     bertConfiguration: BERT.Configuration,
@@ -160,6 +162,16 @@ public struct SimpleArchitecture: Architecture {
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+    let reasoningLayerNormalization = LayerNormalization<Float>(
+      featureCount: hiddenSize,
+      axis: -1)
+    self.reasoningLayerNormalization = ContextualizedLayer(
+      base: reasoningLayerNormalization,
+      generator: Dense<Float>(
+        inputSize: contextEmbeddingSize,
+        outputSize: reasoningLayerNormalization.parameterCount,
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
   }
 
   @differentiable
@@ -189,7 +201,10 @@ public struct SimpleArchitecture: Architecture {
   public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
     let contextualizedInput = ContextualizedInput(input: input, context: context)
-    return reasoning(contextualizedInput)
+    // We are adding a skip connection here to help the training process.
+    return reasoningLayerNormalization(ContextualizedInput(
+      input: input + reasoning(contextualizedInput),
+      context: context))
   }
 
   @differentiable

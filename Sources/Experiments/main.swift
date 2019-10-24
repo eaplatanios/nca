@@ -57,12 +57,12 @@ let textTokenizer = FullTextTokenizer(
 var mrpc = try! MRPC(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 50, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 100, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 var cola = try! CoLA(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 50, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 100, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 
 var architecture = SimpleArchitecture(
@@ -74,19 +74,19 @@ try! architecture.textPerception.load(
   preTrainedModel: .base(cased: false, multilingual: false),
   from: bertDir)
 
-var mrpcOptimizer = Adam(
+var mrpcOptimizer = NCA.Adam(
   for: architecture,
-  learningRate: 1e-3,
+  learningRate: 5e-5,
   beta1: 0.9,
-  beta2: 0.99,
-  epsilon: 1e-8,
+  beta2: 0.999,
+  epsilon: 1e-6,
   decay: 0)
-var colaOptimizer = Adam(
+var colaOptimizer = NCA.Adam(
   for: architecture,
-  learningRate: 1e-3,
+  learningRate: 5e-5,
   beta1: 0.9,
-  beta2: 0.99,
-  epsilon: 1e-8,
+  beta2: 0.999,
+  epsilon: 1e-6,
   decay: 0)
 
 for step in 1..<10000 {
