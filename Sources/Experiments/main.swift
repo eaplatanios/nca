@@ -76,14 +76,28 @@ try! architecture.textPerception.load(
 
 var mrpcOptimizer = NCA.Adam(
   for: architecture,
-  learningRate: 1e-4,
+  learningRate: ExponentiallyDecayedParameter(
+    baseParameter: ExponentiallyWarmedUpParameter(
+      baseParameter: FixedParameter(Float(1e-3)),
+      warmUpStepCount: 1000,
+      warmUpFactor: 0.1),
+    decayRate: 0.99,
+    decayStepCount: 1,
+    startStep: 1000),
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,
   decay: 0)
 var colaOptimizer = NCA.Adam(
   for: architecture,
-  learningRate: 1e-4,
+  learningRate: ExponentiallyDecayedParameter(
+    baseParameter: ExponentiallyWarmedUpParameter(
+      baseParameter: FixedParameter(Float(1e-3)),
+      warmUpStepCount: 1000,
+      warmUpFactor: 0.1),
+    decayRate: 0.99,
+    decayStepCount: 1,
+    startStep: 1000),
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,

@@ -18,35 +18,38 @@ import TensorFlow
 ///
 /// Reference: ["Adam - A Method for Stochastic Optimization"](
 /// https://arxiv.org/abs/1412.6980v8)
-public struct Adam<Model: Differentiable>: Optimizer
+public struct Adam<Model: Differentiable, LearningRate: ScheduledParameter>: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & ElementaryFunctions,
-      Model.TangentVector.VectorSpaceScalar == Float {
+      Model.TangentVector.VectorSpaceScalar == Float,
+      LearningRate.Scalar == Float {
   /// The learning rate.
-  public var learningRate: Float
+  public var learningRate: LearningRate
+
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta1: Float
+
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta2: Float
+
   /// A small scalar added to the denominator to improve numerical stability.
   public var epsilon: Float
-  /// The learning rate decay.
-  public var decay: Float
+
   /// The current step.
   public var step: Int = 0
+
   /// The first moments of the weights.
   public var firstMoments: Model.TangentVector = .zero
+
   /// The second moments of the weights.
   public var secondMoments: Model.TangentVector = .zero
 
   public init(
     for model: __shared Model,
-    learningRate: Float = 1e-3,
+    learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-8,
-    decay: Float = 0
+    epsilon: Float = 1e-8
   ) {
-    precondition(learningRate >= 0, "Learning rate must be non-negative")
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
     precondition(decay >= 0, "Learning rate decay must be non-negative")
@@ -55,13 +58,12 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
-    self.decay = decay
   }
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
     step += 1
     let step = Float(self.step)
-    let learningRate = self.learningRate * 1 / (1 + decay * step)
+    let learningRate = self.learningRate(forStep: self.step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
     // unable to type-check this expression in reasonable time" error.
     var stepSize = learningRate * sqrt(1 - pow(beta2, step))
@@ -82,38 +84,45 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
 ///
 /// Reference: ["On the Convergence of Adam and Beyond"](
 /// https://openreview.net/pdf?id=ryQu7f-RZ)
-public struct AMSGrad<Model: Differentiable & KeyPathIterable>: Optimizer
+public struct AMSGrad<
+  Model: Differentiable & KeyPathIterable,
+  LearningRate: ScheduledParameter
+>: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
                            ElementaryFunctions & KeyPathIterable,
-  Model.TangentVector.VectorSpaceScalar == Float {
+  Model.TangentVector.VectorSpaceScalar == Float,
+  LearningRate.Scalar == Float {
   /// The learning rate.
-  public var learningRate: Float
+  public var learningRate: LearningRate
+
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta1: Float
+
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta2: Float
+
   /// A small scalar added to the denominator to improve numerical stability.
   public var epsilon: Float
-  /// The learning rate decay.
-  public var decay: Float
+
   /// The current step.
   public var step: Int = 0
+
   /// The first moments of the weights.
   public var firstMoments: Model.TangentVector = .zero
+
   /// The second moments of the weights.
   public var secondMoments: Model.TangentVector = .zero
+
   /// The maximum of the second moments of the weights.
   public var secondMomentsMax: Model.TangentVector = .zero
 
   public init(
     for model: __shared Model,
-    learningRate: Float = 1e-3,
+    learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-8,
-    decay: Float = 0
+    epsilon: Float = 1e-8
   ) {
-    precondition(learningRate >= 0, "Learning rate must be non-negative")
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
     precondition(decay >= 0, "Learning rate decay must be non-negative")
@@ -122,15 +131,14 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
-    self.decay = decay
   }
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
     step += 1
     let step = Float(self.step)
+    let learningRate = self.learningRate(forStep: self.step)
     let beta1Power = pow(beta1, step)
     let beta2Power = pow(beta2, step)
-    let learningRate = self.learningRate * 1 / (1 + decay * step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
     // unable to type-check this expression in reasonable time" error.
     var stepSize = learningRate * sqrt(1 - pow(beta2Power, step))
