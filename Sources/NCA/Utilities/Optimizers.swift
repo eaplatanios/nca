@@ -63,7 +63,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
-    precondition(decay >= 0, "Learning rate decay must be non-negative")
 
     self.learningRate = learningRate
     self.beta1 = beta1
@@ -136,7 +135,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
-    precondition(decay >= 0, "Learning rate decay must be non-negative")
 
     self.learningRate = learningRate
     self.beta1 = beta1
