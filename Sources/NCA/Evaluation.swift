@@ -62,5 +62,5 @@ public func matthewsCorrelationCoefficient(predictions: [Bool], groundTruth: [Bo
   }
   let nominator = Float(tp * tn - fp * fn)
   let denominator = Float((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)).squareRoot()
-  return nominator / denominator
+  return denominator != 0 ? nominator / denominator : 0
 }
