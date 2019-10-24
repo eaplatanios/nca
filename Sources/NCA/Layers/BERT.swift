@@ -322,7 +322,7 @@ extension BERT {
   ///     `bert_model.ckpt.data-00000-of-00001`). In this case, the file URL should be specified as
   ///     their common prefix (e.g., `bert_model.ckpt`).
   public mutating func load(fromTensorFlowCheckpoint fileURL: URL) {
-    let checkpointReader = TensorFlowCheckpointReader(checkpointPath: fileURL)
+    let checkpointReader = TensorFlowCheckpointReader(checkpointPath: fileURL.path)
     tokenEmbedding.embeddings =
       Tensor(checkpointReader.loadTensor(named: "bert/embeddings/word_embeddings"))
     tokenTypeEmbedding.embeddings =
