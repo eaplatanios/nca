@@ -46,7 +46,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
   public var epsilon: Float
 
   /// The current step.
-  public var step: Int = 0
+  public var step: UInt64 = 0
 
   /// The first moments of the weights.
   public var firstMoments: Model.TangentVector = .zero
@@ -116,7 +116,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
   public var epsilon: Float
 
   /// The current step.
-  public var step: Int = 0
+  public var step: UInt64 = 0
 
   /// The first moments of the weights.
   public var firstMoments: Model.TangentVector = .zero
