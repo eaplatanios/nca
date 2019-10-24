@@ -27,7 +27,7 @@ public struct CoLA: Task {
 
   public let problem: Classification = Classification(
     context: .grammaticalCorrectness,
-    concepts: [.positive, .negative])
+    concepts: [.negative, .positive])
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
@@ -47,12 +47,13 @@ public struct CoLA: Task {
     let input = ArchitectureInput(text: batch.inputs)
     let problem = self.problem
     let labels = batch.labels!
-    let (loss, gradient) = architecture.valueWithGradient {
+    var (loss, gradient) = architecture.valueWithGradient {
       softmaxCrossEntropy(
         logits: $0.classify(input, problem: problem),
         labels: labels,
         reduction: { $0.mean() })
     }
+    gradient.clipByGlobalNorm(clipNorm: 1.0)
     optimizer.update(&architecture, along: gradient)
     return loss.scalarized()
   }
