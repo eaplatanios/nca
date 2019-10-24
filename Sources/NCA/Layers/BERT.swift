@@ -244,7 +244,76 @@ extension BERT {
   }
 }
 
+//===-----------------------------------------------------------------------------------------===//
+// Pre-Trained Models
+//===-----------------------------------------------------------------------------------------===//
+
 extension BERT {
+  public enum PreTrainedModel {
+    case base(cased: Bool, multilingual: Bool)
+    case large(cased: Bool, wholeWordMasking: Bool)
+
+    /// The name of this pre-trained model.
+    public var name: String {
+      switch self {
+      case .base(false, false): return "uncased_L-12_H-768_A-12"
+      case .base(true, false): return "cased_L-12_H-768_A-12"
+      case .base(false, true): return "multilingual_L-12_H-768_A-12"
+      case .base(true, true): return "multi_cased_L-12_H-768_A-12"
+      case .large(false, false): return "uncased_L-24_H-1024_A-16"
+      case .large(true, false): return "cased_L-24_H-1024_A-16"
+      case .large(false, true): return "wwm_uncased_L-24_H-1024_A-16"
+      case .large(true, true): return "wwm_cased_L-24_H-1024_A-16"
+      }
+    }
+
+    /// The URL where this pre-trained model can be downloaded from.
+    public var url: URL {
+      let prefix = "https://storage.googleapis.com/bert_models"
+      switch self {
+      case .base(false, false): return URL(string: "\(prefix)/2018_10_18/\(name).zip")!
+      case .base(true, false): return URL(string: "\(prefix)/2018_10_18/\(name).zip")!
+      case .base(false, true): return URL(string: "\(prefix)/2018_11_03/\(name).zip")!
+      case .base(true, true): return URL(string: "\(prefix)/2018_11_23/\(name).zip")!
+      case .large(false, false): return URL(string: "\(prefix)/2018_10_18/\(name).zip")!
+      case .large(true, false): return URL(string: "\(prefix)/2018_10_18/\(name).zip")!
+      case .large(false, true): return URL(string: "\(prefix)/2019_05_30/\(name).zip")!
+      case .large(true, true): return URL(string: "\(prefix)/2019_05_30/\(name).zip")!
+      }
+    }
+
+    /// Downloads this pre-trained model to the specified directory, if it's not already there.
+    public func maybeDownload(to directory: URL) throws {
+      // Download the model, if necessary.
+      let compressedFileURL = directory.appendingPathComponent("\(name).zip")
+      try NCA.maybeDownload(from: url, to: compressedFileURL)
+
+      // Extract the data, if necessary.
+      let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
+      if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
+        try FileManager.default.unzipItem(at: compressedFileURL, to: directory)
+      }
+    }
+  }
+
+  /// Loads a pre-trained BERT model from the specified directory.
+  ///
+  /// - Note: This function will download the pre-trained model files to the specified directory,
+  ///   if they are not already there.
+  ///
+  /// - Parameters:
+  ///   - model: Pre-trained model configuration to load.
+  ///   - directory: Directory to load the pretrained model from.
+  public mutating func load(preTrainedModel model: PreTrainedModel, from directory: URL) throws {
+    // Download the model, if necessary.
+    try model.maybeDownload(to: directory)
+
+    // Load the model.
+    load(fromTensorFlowCheckpoint: directory
+      .appendingPathComponent(model.name)
+      .appendingPathComponent("bert_model.ckpt"))
+  }
+
   /// Loads a BERT model from the provided TensorFlow checkpoint file into this BERT model.
   ///
   /// - Parameters:
