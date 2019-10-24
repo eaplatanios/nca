@@ -96,22 +96,37 @@ public struct Labeling: Problem {
 }
 
 public struct SimpleArchitecture: Architecture {
+  @noDerivative public let contextEmbeddingSize: Int
+  @noDerivative public let hiddenSize: Int
+
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
   public var textPerception: BERT
+  public var textPoolingQueryDense: Dense<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
+  public var textPoolingOutputDense: Dense<Float>
   public var reasoning: ContextualizedLayer<Sequential<Dense<Float>, Dense<Float>>, Dense<Float>>
 
-  public init(bertConfiguration: BERT.Configuration) {
-    // TODO: !!!!!! Make this much much smaller.
-    let problemEmbeddingSize = bertConfiguration.hiddenSize
+  public init(
+    bertConfiguration: BERT.Configuration,
+    hiddenSize: Int,
+    contextEmbeddingSize: Int,
+    reasoningHiddenSize: Int
+  ) {
+    self.contextEmbeddingSize = contextEmbeddingSize
+    self.hiddenSize = hiddenSize
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
-    self.contextEmbeddings = initializer([Context.allCases.count, problemEmbeddingSize])
-    self.conceptEmbeddings = initializer([Concept.allCases.count, problemEmbeddingSize])
+    self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
+    self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
     self.textPerception = BERT(configuration: bertConfiguration)
+    self.textPoolingQueryDense = Dense<Float>(
+      inputSize: contextEmbeddingSize,
+      outputSize: bertConfiguration.hiddenSize,
+      weightInitializer: truncatedNormalInitializer(
+        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
     self.textPoolingMultiHeadAttention = MultiHeadAttention(
-      sourceSize: problemEmbeddingSize,
+      sourceSize: bertConfiguration.hiddenSize,
       targetSize: bertConfiguration.hiddenSize,
       headCount: bertConfiguration.attentionHeadCount,
       headSize: bertConfiguration.hiddenSize / bertConfiguration.attentionHeadCount,
@@ -120,23 +135,28 @@ public struct SimpleArchitecture: Architecture {
       valueActivation: { $0 },
       attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
       matrixResult: true)
+    self.textPoolingOutputDense = Dense<Float>(
+      inputSize: bertConfiguration.hiddenSize,
+      outputSize: hiddenSize,
+      weightInitializer: truncatedNormalInitializer(
+        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
     let reasoningBase = Sequential(
       Dense<Float>(
-        inputSize: bertConfiguration.hiddenSize,
-        outputSize: 2 * bertConfiguration.hiddenSize,
+        inputSize: hiddenSize,
+        outputSize: reasoningHiddenSize,
         activation: bertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
       Dense<Float>(
-        inputSize: 2 * bertConfiguration.hiddenSize,
-        outputSize: bertConfiguration.hiddenSize,
+        inputSize: reasoningHiddenSize,
+        outputSize: hiddenSize,
         activation: bertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
       generator: Dense<Float>(
-        inputSize: problemEmbeddingSize,
+        inputSize: contextEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
@@ -153,14 +173,16 @@ public struct SimpleArchitecture: Architecture {
     perceivedText: Tensor<Float>,
     problem: Problem
   ) -> Tensor<Float> {
-    let query = contextEmbeddings[problem.context.rawValue]
-      .expandingShape(at: 0, 1)
+    let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
+    let query = textPoolingQueryDense(context)
+      .expandingShape(at: 0)
       .tiled(multiples: Tensor([Int32(perceivedText.shape[0]), 1, 1]))
     let attentionInput = AttentionInput(
       source: query,
       target: perceivedText,
       mask: Tensor<Float>(text.mask.expandingShape(at: 1)))
-    return textPoolingMultiHeadAttention(attentionInput)
+    let pooledPerceivedText = textPoolingMultiHeadAttention(attentionInput)
+    return textPoolingOutputDense(pooledPerceivedText)
   }
 
   @differentiable

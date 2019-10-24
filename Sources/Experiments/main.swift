@@ -22,15 +22,32 @@ let modulesDir = ncaDir.appendingPathComponent("modules")
 let bertDir = modulesDir
   .appendingPathComponent("text")
   .appendingPathComponent("bert")
-  .appendingPathComponent("multi_cased_L-12_H-768_A-12")
 let tasksDir = ncaDir.appendingPathComponent("tasks")
 
-let vocabularyURL = bertDir.appendingPathComponent("vocab.txt")
-let bertConfigurationURL = bertDir.appendingPathComponent("bert_config.json")
-let bertCheckpointURL = bertDir.appendingPathComponent("bert_model.ckpt")
+let bertPreTrainedModel = BERT.PreTrainedModel.base(cased: false, multilingual: false)
+try bertPreTrainedModel.maybeDownload(to: bertDir)
+
+let vocabularyURL = bertDir
+  .appendingPathComponent(bertPreTrainedModel.name)
+  .appendingPathComponent("vocab.txt")
+let bertConfigurationURL = bertDir
+  .appendingPathComponent(bertPreTrainedModel.name)
+  .appendingPathComponent("bert_config.json")
 
 let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
 let bertConfiguration = try! BERT.Configuration(fromFile: bertConfigurationURL)
+//let bertConfiguration = BERT.Configuration(
+//  vocabularySize: vocabulary.count,
+//  hiddenSize: 64,
+//  hiddenLayerCount: 1,
+//  attentionHeadCount: 4,
+//  intermediateSize: 4,
+//  intermediateActivation: .gelu,
+//  hiddenDropoutProbability: 0.1,
+//  attentionDropoutProbability: 0.1,
+//  maxSequenceLength: 50,
+//  typeVocabularySize: 2,
+//  initializerStandardDeviation: 0.02)
 let textTokenizer = FullTextTokenizer(
   caseSensitive: false,
   vocabulary: vocabulary,
@@ -48,8 +65,14 @@ var cola = try! CoLA(
   maxSequenceLength: 50, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 
-var architecture = SimpleArchitecture(bertConfiguration: bertConfiguration)
-architecture.textPerception.load(fromTensorFlowCheckpoint: bertCheckpointURL)
+var architecture = SimpleArchitecture(
+  bertConfiguration: bertConfiguration,
+  hiddenSize: 64,
+  contextEmbeddingSize: 8,
+  reasoningHiddenSize: 64)
+try! architecture.textPerception.load(
+  preTrainedModel: .base(cased: false, multilingual: false),
+  from: bertDir)
 
 var mrpcOptimizer = Adam(
   for: architecture,
@@ -68,7 +91,7 @@ var colaOptimizer = Adam(
 
 for step in 1..<10000 {
   print("Step \(step)")
-  if step % 1 == 0 {
+  if step % 10 == 0 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
 //    let colaResults = cola.evaluate(using: architecture).summary
     let results =
