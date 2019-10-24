@@ -254,10 +254,7 @@ extension MRPC {
     }
 
     public var summary: String {
-      """
-      F1 Score: \(f1Score)
-      Accuracy: \(accuracy)
-      """
+      "Accuracy: \(accuracy), F1 Score: \(f1Score)"
     }
   }
 

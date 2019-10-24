@@ -57,12 +57,12 @@ let textTokenizer = FullTextTokenizer(
 var mrpc = try! MRPC(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 100, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 var cola = try! CoLA(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 100, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 
 var architecture = SimpleArchitecture(
@@ -76,14 +76,14 @@ try! architecture.textPerception.load(
 
 var mrpcOptimizer = NCA.Adam(
   for: architecture,
-  learningRate: 5e-5,
+  learningRate: 1e-4,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,
   decay: 0)
 var colaOptimizer = NCA.Adam(
   for: architecture,
-  learningRate: 5e-5,
+  learningRate: 1e-4,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,
@@ -93,32 +93,19 @@ for step in 1..<10000 {
   print("Step \(step)")
   if step % 10 == 0 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
-//    let colaResults = cola.evaluate(using: architecture).summary
+    let colaResults = cola.evaluate(using: architecture).summary
     let results =
       """
       ================
       Evaluation
       ================
-      MRPC Evaluation:
-      \(mrpcResults.replacingOccurrences(of: "\n", with: "\n\t"))
+      MRPC Evaluation: \(mrpcResults)
+      CoLA Evaluation: \(colaResults)
       ================
       """
-//    let results =
-//      """
-//      ================
-//      Evaluation
-//      ================
-//      MRPC Evaluation:
-//      \(mrpcResults.replacingOccurrences(of: "\n", with: "\n\t"))
-//      ----------------
-//      CoLA Evaluation:
-//      \(colaResults.replacingOccurrences(of: "\n", with: "\n\t"))
-//      ================
-//      """
     print(results)
   }
   let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
-//  let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
-  print("\tLoss = \(mrpcLoss)")
-//  print("\tLoss = \(colaLoss)")
+  let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
+  print("\tMRPC Loss = \(mrpcLoss) | CoLA Loss = \(colaLoss)")
 }

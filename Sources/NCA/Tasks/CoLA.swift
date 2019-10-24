@@ -236,10 +236,7 @@ extension CoLA {
     }
 
     public var summary: String {
-      """
-      Matthew's Correlation Coefficient: \(matthewsCorrelationCoefficient)
-      Accuracy:                          \(accuracy)
-      """
+      "Accuracy: \(accuracy), Matthew's Correlation Coefficient: \(matthewsCorrelationCoefficient)"
     }
   }
 
