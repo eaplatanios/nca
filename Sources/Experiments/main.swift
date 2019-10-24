@@ -86,8 +86,7 @@ var mrpcOptimizer = NCA.Adam(
     startStep: 1000),
   beta1: 0.9,
   beta2: 0.999,
-  epsilon: 1e-6,
-  decay: 0)
+  epsilon: 1e-6)
 var colaOptimizer = NCA.Adam(
   for: architecture,
   learningRate: ExponentiallyDecayedParameter(
@@ -100,8 +99,7 @@ var colaOptimizer = NCA.Adam(
     startStep: 1000),
   beta1: 0.9,
   beta2: 0.999,
-  epsilon: 1e-6,
-  decay: 0)
+  epsilon: 1e-6)
 
 for step in 1..<10000 {
   print("Step \(step)")
