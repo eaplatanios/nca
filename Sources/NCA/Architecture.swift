@@ -102,7 +102,7 @@ public struct SimpleArchitecture: Architecture {
 
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
-  public var textPerception: BERT
+  @noDerivative public var textPerception: BERT // TODO: !!! Unfreeze this later on.
   public var textPoolingQueryDense: Dense<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: Dense<Float>
