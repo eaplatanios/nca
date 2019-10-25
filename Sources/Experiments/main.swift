@@ -12,9 +12,12 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Logging
 import NCA
 import Foundation
 import TensorFlow
+
+let logger = Logger(label: "NCA Experiment")
 
 /// Helper string interpolation extensions for logging training progress.
 extension String.StringInterpolation {
@@ -116,6 +119,7 @@ var colaOptimizer = WeightDecayedAdam(
   beta2: 0.999,
   epsilon: 1e-6)
 
+logger.info("Training is starting...")
 for step in 1..<10000 {
   if step % 10 == 0 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
@@ -129,9 +133,9 @@ for step in 1..<10000 {
       CoLA Evaluation: \(colaResults)
       ================
       """
-    print(results)
+    logger.info(results)
   }
   let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
   let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
-  print("\tStep \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss)")
+  logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss)")
 }

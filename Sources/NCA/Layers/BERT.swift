@@ -315,6 +315,8 @@ extension BERT {
   ///   - model: Pre-trained model configuration to load.
   ///   - directory: Directory to load the pretrained model from.
   public mutating func load(preTrainedModel model: PreTrainedModel, from directory: URL) throws {
+    logger.info("Loading BERT pre-trained model '\(model.name)'.")
+
     // Download the model, if necessary.
     try model.maybeDownload(to: directory)
 

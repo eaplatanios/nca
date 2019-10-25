@@ -54,16 +54,6 @@ public struct MRPC: Task {
         reduction: { $0.mean() })
     }
     gradient.clipByGlobalNorm(clipNorm: 10.0)
-//    let (loss, gradient) = architecture.valueWithGradient { a -> Tensor<Float> in
-//      // TODO: !!! Fix labels etc.
-//      let logits = a.classify(input, problem: problem)
-//      print(logits.description(summarizing: true))
-//      print(labels.description(summarizing: true))
-//      return softmaxCrossEntropy(
-//        logits: logits,
-//        labels: labels,
-//        reduction: { $0.mean() })
-//    }
     optimizer.update(&architecture, along: gradient)
     return loss.scalarized()
   }
