@@ -67,36 +67,38 @@ var cola = try! CoLA(
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
-  hiddenSize: 64,
-  contextEmbeddingSize: 8,
-  reasoningHiddenSize: 64)
+  hiddenSize: 512,
+  contextEmbeddingSize: 4,
+  reasoningHiddenSize: 512)
 try! architecture.textPerception.load(
   preTrainedModel: .base(cased: false, multilingual: false),
   from: bertDir)
 
-var mrpcOptimizer = NCA.Adam(
+var mrpcOptimizer = WeightDecayedAdam(
   for: architecture,
   learningRate: ExponentiallyDecayedParameter(
-    baseParameter: ExponentiallyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(1e-3)),
-      warmUpStepCount: 1000,
-      warmUpFactor: 0.1),
+    baseParameter: LinearlyWarmedUpParameter(
+      baseParameter: FixedParameter(Float(2e-5)),
+      warmUpStepCount: 14,
+      warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
     startStep: 1000),
+  weightDecayRate: 0.01,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6)
-var colaOptimizer = NCA.Adam(
+var colaOptimizer = WeightDecayedAdam(
   for: architecture,
   learningRate: ExponentiallyDecayedParameter(
-    baseParameter: ExponentiallyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(1e-3)),
-      warmUpStepCount: 1000,
-      warmUpFactor: 0.1),
+    baseParameter: LinearlyWarmedUpParameter(
+      baseParameter: FixedParameter(Float(2e-5)),
+      warmUpStepCount: 14,
+      warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
     startStep: 1000),
+  weightDecayRate: 0.01,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6)

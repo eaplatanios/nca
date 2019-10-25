@@ -17,7 +17,7 @@ import TensorFlow
 /// A layer that applies layer normalization over a batch of inputs.
 ///
 /// - Source: [Layer Normalization](https://arxiv.org/abs/1607.06450).
-public struct LayerNormalization<Scalar: TensorFlowFloatingPoint>: Layer {
+public struct LayerNormalization<Scalar: TensorFlowFloatingPoint>: Layer, Regularizable {
   /// Offset value, also known as beta.
   public var offset: Tensor<Scalar>
 
@@ -29,6 +29,10 @@ public struct LayerNormalization<Scalar: TensorFlowFloatingPoint>: Layer {
 
   /// The variance epsilon value.
   @noDerivative public let epsilon: Tensor<Scalar>
+
+  public var regularizationValue: TangentVector {
+    TangentVector(offset: Tensor(Scalar(0)), scale: Tensor(Scalar(0)))
+  }
 
   /// Creates a layer normalization layer.
   public init(

@@ -39,10 +39,16 @@ public struct ContextualizedInput<Input: Differentiable, Context: Differentiable
 ///
 /// - Source: [Contextual Parameter Generation for Universal Neural Machine Translation](
 ///             http://platanios.org/assets/pdf/platanios_2018_cpg_nmt/paper.pdf).
-public struct ContextualizedLayer<Base: Layer, Generator: Layer>: Layer
-where Generator.Output == Tensor<Float> {
+public struct ContextualizedLayer<
+  Base: Layer,
+  Generator: Layer & Regularizable
+>: Layer, Regularizable where Generator.Output == Tensor<Float> {
   @noDerivative public let base: Base
   public var generator: Generator
+
+  public var regularizationValue: TangentVector {
+    TangentVector(generator: generator.regularizationValue)
+  }
 
   public init(base: Base, generator: Generator) {
     self.base = base

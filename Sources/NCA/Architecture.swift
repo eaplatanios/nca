@@ -14,7 +14,7 @@
 
 import TensorFlow
 
-public protocol Architecture: Differentiable, KeyPathIterable
+public protocol Architecture: KeyPathIterable, Regularizable
 where TangentVector: KeyPathIterable {
   @differentiable
   func perceive(text: TextBatch, problem: Problem) -> Tensor<Float>
@@ -102,12 +102,24 @@ public struct SimpleArchitecture: Architecture {
 
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
-  @noDerivative public var textPerception: BERT // TODO: !!! Unfreeze this later on.
-  public var textPoolingQueryDense: Dense<Float>
+  public var textPerception: BERT
+  public var textPoolingQueryDense: Linear<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
-  public var textPoolingOutputDense: Dense<Float>
-  public var reasoning: ContextualizedLayer<Sequential<Dense<Float>, Dense<Float>>, Dense<Float>>
-  public var reasoningLayerNormalization: ContextualizedLayer<LayerNormalization<Float>, Dense<Float>>
+  public var textPoolingOutputDense: Linear<Float>
+  public var reasoning: ContextualizedLayer<Sequential<Linear<Float>, Linear<Float>>, Linear<Float>>
+  public var reasoningLayerNormalization: ContextualizedLayer<LayerNormalization<Float>, Linear<Float>>
+
+  public var regularizationValue: TangentVector {
+    TangentVector(
+      contextEmbeddings: contextEmbeddings,
+      conceptEmbeddings: conceptEmbeddings,
+      textPerception: textPerception.regularizationValue,
+      textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
+      textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
+      textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
+      reasoning: reasoning.regularizationValue,
+      reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue)
+  }
 
   public init(
     bertConfiguration: BERT.Configuration,
@@ -122,7 +134,7 @@ public struct SimpleArchitecture: Architecture {
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
     self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
     self.textPerception = BERT(configuration: bertConfiguration)
-    self.textPoolingQueryDense = Dense<Float>(
+    self.textPoolingQueryDense = Linear<Float>(
       inputSize: contextEmbeddingSize,
       outputSize: bertConfiguration.hiddenSize,
       weightInitializer: truncatedNormalInitializer(
@@ -137,19 +149,19 @@ public struct SimpleArchitecture: Architecture {
       valueActivation: { $0 },
       attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
       matrixResult: true)
-    self.textPoolingOutputDense = Dense<Float>(
+    self.textPoolingOutputDense = Linear<Float>(
       inputSize: bertConfiguration.hiddenSize,
       outputSize: hiddenSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
     let reasoningBase = Sequential(
-      Dense<Float>(
+      Linear<Float>(
         inputSize: hiddenSize,
         outputSize: reasoningHiddenSize,
         activation: bertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
-      Dense<Float>(
+      Linear<Float>(
         inputSize: reasoningHiddenSize,
         outputSize: hiddenSize,
         activation: bertConfiguration.intermediateActivation.activationFunction(),
@@ -157,7 +169,7 @@ public struct SimpleArchitecture: Architecture {
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
-      generator: Dense<Float>(
+      generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
@@ -167,7 +179,7 @@ public struct SimpleArchitecture: Architecture {
       axis: -1)
     self.reasoningLayerNormalization = ContextualizedLayer(
       base: reasoningLayerNormalization,
-      generator: Dense<Float>(
+      generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: reasoningLayerNormalization.parameterCount,
         weightInitializer: truncatedNormalInitializer(

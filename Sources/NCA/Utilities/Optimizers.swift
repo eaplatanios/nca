@@ -14,6 +14,14 @@
 
 import TensorFlow
 
+/// Represents a type that can contribute to the regularization term when training models.
+public protocol Regularizable: Differentiable {
+  /// The contribution of this term to the regularization term. This should be set to
+  /// `TangentVector.zero` if this term should not contribute to the regularization term
+  /// (e.g., for layer normalization parameters).
+  var regularizationValue: TangentVector { get }
+}
+
 /// A numerical optimizer.
 ///
 /// Optimizers apply an optimization algorithm to update the differentiable models.
@@ -59,7 +67,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-8
+    epsilon: Float = 1e-6
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
@@ -84,6 +92,77 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
     let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
     model.move(along: firstMoments.scaled(by: -stepSize) ./ denominator)
+  }
+}
+
+/// Adam optimizer with weight decay.
+///
+/// Reference: ["Adam - A Method for Stochastic Optimization"](
+/// https://arxiv.org/abs/1412.6980v8)
+public struct WeightDecayedAdam<Model: Regularizable, LearningRate: ScheduledParameter>: Optimizer
+where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & ElementaryFunctions,
+      Model.TangentVector.VectorSpaceScalar == Float,
+      LearningRate.Scalar == Float {
+  /// The learning rate.
+  public var learningRate: LearningRate
+
+  /// A coefficient used to calculate the first and second moments of the gradients.
+  public var beta1: Float
+
+  /// A coefficient used to calculate the first and second moments of the gradients.
+  public var beta2: Float
+
+  /// A small scalar added to the denominator to improve numerical stability.
+  public var epsilon: Float
+
+  /// The weight decay rate.
+  public var weightDecayRate: Float
+
+  /// The current step.
+  public var step: UInt64 = 0
+
+  /// The first moments of the weights.
+  public var firstMoments: Model.TangentVector = .zero
+
+  /// The second moments of the weights.
+  public var secondMoments: Model.TangentVector = .zero
+
+  public init(
+    for model: __shared Model,
+    learningRate: LearningRate,
+    weightDecayRate: Float = 0.01,
+    beta1: Float = 0.9,
+    beta2: Float = 0.999,
+    epsilon: Float = 1e-6
+  ) {
+    precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
+    precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
+
+    self.learningRate = learningRate
+    self.weightDecayRate = weightDecayRate
+    self.beta1 = beta1
+    self.beta2 = beta2
+    self.epsilon = epsilon
+  }
+
+  public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+    step += 1
+    let step = Float(self.step)
+    let learningRate = self.learningRate(forStep: self.step)
+    // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
+    // unable to type-check this expression in reasonable time" error.
+    // TODO: !!! Bias correction.
+    // var stepSize = learningRate * sqrt(1 - pow(beta2, step))
+    // stepSize = stepSize / (1 - pow(beta1, step))
+    let stepSize = learningRate
+    firstMoments = firstMoments.scaled(by: beta1)
+    firstMoments += direction.scaled(by: 1 - beta1)
+    secondMoments = secondMoments.scaled(by: beta2)
+    secondMoments += direction .* direction.scaled(by: 1 - beta2)
+    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
+    let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
+    let update = (firstMoments ./ denominator) + weightDecay
+    model.move(along: update.scaled(by: -stepSize))
   }
 }
 
@@ -131,7 +210,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-8
+    epsilon: Float = 1e-6
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")

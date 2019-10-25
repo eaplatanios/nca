@@ -53,7 +53,7 @@ public struct CoLA: Task {
         labels: labels,
         reduction: { $0.mean() })
     }
-    gradient.clipByGlobalNorm(clipNorm: 1.0)
+    gradient.clipByGlobalNorm(clipNorm: 10.0)
     optimizer.update(&architecture, along: gradient)
     return loss.scalarized()
   }

@@ -44,13 +44,18 @@ public struct TransformerInput<Scalar: TensorFlowFloatingPoint>: Differentiable 
 /// - Note: This layer returns a tensor with shape `[batchSize, sequenceLength, hiddenSize]`.
 ///
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
-public struct TransformerEncoder: Layer { // <Scalar: TensorFlowFloatingPoint>: Layer {
+public struct TransformerEncoder: Layer, Regularizable { // <Scalar: TensorFlowFloatingPoint>: Layer {
   // TODO: !!! Convert to a generic constraint once TF-427 is resolved.
   public typealias Scalar = Float
 
   @noDerivative public let hiddenSize: Int
 
   public var encoderLayers: [TransformerEncoderLayer]
+
+  public var regularizationValue: TangentVector {
+    TangentVector(encoderLayers: [TransformerEncoderLayer].TangentVector(
+      encoderLayers.map { $0.regularizationValue }))
+  }
 
   /// Creates a transformer encoder.
   ///
@@ -168,7 +173,7 @@ extension TransformerEncoder {
 /// Transformer encoder layer.
 ///
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
-public struct TransformerEncoderLayer: Layer { // <Scalar: TensorFlowFloatingPoint>: Layer {
+public struct TransformerEncoderLayer: Layer, Regularizable { // <Scalar: TensorFlowFloatingPoint>: Layer {
   // TODO: !!! Convert to a generic constraint once TF-427 is resolved.
   public typealias Scalar = Float
 
@@ -185,6 +190,20 @@ public struct TransformerEncoderLayer: Layer { // <Scalar: TensorFlowFloatingPoi
   public var outputWeight: Tensor<Scalar>
   public var outputBias: Tensor<Scalar>
   public var outputLayerNormalization: LayerNormalization<Scalar>
+
+  public var regularizationValue: TangentVector {
+    TangentVector(
+      multiHeadAttention: multiHeadAttention.regularizationValue,
+      hiddenDropout: hiddenDropout.regularizationValue,
+      attentionWeight: attentionWeight,
+      attentionBias: Tensor(Scalar(0)),
+      attentionLayerNormalization: attentionLayerNormalization.regularizationValue,
+      intermediateWeight: intermediateWeight,
+      intermediateBias: Tensor(Scalar(0)),
+      outputWeight: outputWeight,
+      outputBias: Tensor(Scalar(0)),
+      outputLayerNormalization: outputLayerNormalization.regularizationValue)
+  }
 
   /// Creates a transformer encoder layer.
   ///

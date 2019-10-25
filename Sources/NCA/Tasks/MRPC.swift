@@ -53,7 +53,7 @@ public struct MRPC: Task {
         labels: labels,
         reduction: { $0.mean() })
     }
-    gradient.clipByGlobalNorm(clipNorm: 1.0)
+    gradient.clipByGlobalNorm(clipNorm: 10.0)
 //    let (loss, gradient) = architecture.valueWithGradient { a -> Tensor<Float> in
 //      // TODO: !!! Fix labels etc.
 //      let logits = a.classify(input, problem: problem)

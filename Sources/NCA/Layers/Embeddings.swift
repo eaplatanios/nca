@@ -18,7 +18,7 @@ import TensorFlow
 ///
 /// `Embedding` is effectively a lookup table that maps indices from a fixed vocabulary to
 /// fixed-size vector representations, e.g. `[[0], [3]] -> [[0.25, 0.1], [0.6, -0.2]]`.
-public struct Embedding<Scalar: TensorFlowFloatingPoint>: Module {
+public struct Embedding<Scalar: TensorFlowFloatingPoint>: Module, Regularizable {
   /// Embeddings lookup table with shape `[vocabularySize, embeddingSize]`.
   public var embeddings: Tensor<Scalar>
 
@@ -32,6 +32,10 @@ public struct Embedding<Scalar: TensorFlowFloatingPoint>: Module {
   /// of a matrix multiplication. If `false`, a regular gather operation is used. The one-hot
   /// approach is better for TPUs.
   @noDerivative public let useOneHotEmbeddings: Bool
+
+  public var regularizationValue: TangentVector {
+    TangentVector(embeddings: embeddings)
+  }
 
   /// Creates an embedding layer.
   ///

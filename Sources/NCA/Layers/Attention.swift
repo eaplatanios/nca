@@ -73,7 +73,7 @@ public struct AttentionInput<Scalar: TensorFlowFloatingPoint>: Differentiable {
 /// rather than using separate tensors.
 ///
 /// - Source: ["Attention Is All You Need"](https://arxiv.org/abs/1706.03762).
-public struct MultiHeadAttention: Layer { // <Scalar: TensorFlowFloatingPoint>: Layer {
+public struct MultiHeadAttention: Layer, Regularizable { // <Scalar: TensorFlowFloatingPoint>: Layer {
   // TODO: !!! Convert to a generic constraint.
   public typealias Scalar = Float
 
@@ -93,6 +93,17 @@ public struct MultiHeadAttention: Layer { // <Scalar: TensorFlowFloatingPoint>: 
   public var valueWeight: Tensor<Scalar>
   public var valueBias: Tensor<Scalar>
   public var attentionDropout: Dropout<Scalar>
+
+  public var regularizationValue: TangentVector {
+    TangentVector(
+      queryWeight: queryWeight,
+      queryBias: Tensor(Scalar(0)),
+      keyWeight: keyWeight,
+      keyBias: Tensor(Scalar(0)),
+      valueWeight: valueWeight,
+      valueBias: Tensor(Scalar(0)),
+      attentionDropout: attentionDropout.regularizationValue)
+  }
 
   /// Creates a multi-head attention layer.
   ///

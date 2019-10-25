@@ -19,7 +19,7 @@ import TensorFlow
 ///
 /// - Source: [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](
 ///             https://arxiv.org/pdf/1810.04805.pdf).
-public struct BERT: Module { // <Scalar: TensorFlowFloatingPoint & Codable>: Module {
+public struct BERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoint & Codable>: Module {
   // TODO: !!! Convert to a generic constraint once TF-427 is resolved.
   public typealias Scalar = Float
 
@@ -30,6 +30,16 @@ public struct BERT: Module { // <Scalar: TensorFlowFloatingPoint & Codable>: Mod
   public var embeddingLayerNormalization: LayerNormalization<Scalar>
   public var embeddingDropout: Dropout<Scalar>
   public var transformerEncoder: TransformerEncoder // TODO: !!! <Scalar>
+
+  public var regularizationValue: TangentVector {
+    TangentVector(
+      tokenEmbedding: tokenEmbedding.regularizationValue,
+      tokenTypeEmbedding: tokenTypeEmbedding.regularizationValue,
+      positionEmbedding: positionEmbedding.regularizationValue,
+      embeddingLayerNormalization: embeddingLayerNormalization.regularizationValue,
+      embeddingDropout: embeddingDropout.regularizationValue,
+      transformerEncoder: transformerEncoder.regularizationValue)
+  }
 
   public init(configuration: Configuration, useOneHotEmbeddings: Bool = false) {
     self.configuration = configuration
