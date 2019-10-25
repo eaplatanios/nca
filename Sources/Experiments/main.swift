@@ -78,6 +78,11 @@ var cola = try! CoLA(
   textTokenizer: textTokenizer,
   maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
+var rte = try! RTE(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  batchSize: 32)
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
@@ -88,44 +93,35 @@ try! architecture.textPerception.load(
   preTrainedModel: .base(cased: false, multilingual: false),
   from: bertDir)
 
-var mrpcOptimizer = WeightDecayedAdam(
-  for: architecture,
-  learningRate: ExponentiallyDecayedParameter(
-    baseParameter: LinearlyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(2e-5)),
-      warmUpStepCount: 14,
-      warmUpOffset: 0),
-    decayRate: 0.99,
-    decayStepCount: 1,
-    startStep: 1000),
-  weightDecayRate: 0.01,
-  useBiasCorrection: false,
-  beta1: 0.9,
-  beta2: 0.999,
-  epsilon: 1e-6,
-  maxGradientGlobalNorm: 1.0)
-var colaOptimizer = WeightDecayedAdam(
-  for: architecture,
-  learningRate: ExponentiallyDecayedParameter(
-    baseParameter: LinearlyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(2e-5)),
-      warmUpStepCount: 14,
-      warmUpOffset: 0),
-    decayRate: 0.99,
-    decayStepCount: 1,
-    startStep: 1000),
-  weightDecayRate: 0.01,
-  useBiasCorrection: false,
-  beta1: 0.9,
-  beta2: 0.999,
-  epsilon: 1e-6,
-  maxGradientGlobalNorm: 1.0)
+func createOptimizer() -> WeightDecayedAdam<SimpleArchitecture, ExponentiallyDecayedParameter<LinearlyWarmedUpParameter<FixedParameter<Float>>>> {
+  WeightDecayedAdam(
+    for: architecture,
+    learningRate: ExponentiallyDecayedParameter(
+      baseParameter: LinearlyWarmedUpParameter(
+        baseParameter: FixedParameter(Float(2e-5)),
+        warmUpStepCount: 14,
+        warmUpOffset: 0),
+      decayRate: 0.99,
+      decayStepCount: 1,
+      startStep: 1000),
+    weightDecayRate: 0.01,
+    useBiasCorrection: false,
+    beta1: 0.9,
+    beta2: 0.999,
+    epsilon: 1e-6,
+    maxGradientGlobalNorm: 1.0)
+}
+
+var mrpcOptimizer = createOptimizer()
+var colaOptimizer = createOptimizer()
+var rteOptimizer = createOptimizer()
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
   if step % 10 == 0 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
     let colaResults = cola.evaluate(using: architecture).summary
+    let rteResults = rte.evaluate(using: architecture).summary
     let results =
       """
       ================
@@ -133,11 +129,13 @@ for step in 1..<10000 {
       ================
       MRPC Evaluation: \(mrpcResults)
       CoLA Evaluation: \(colaResults)
+      RTE Evaluation: \(rteResults)
       ================
       """
     logger.info("\(results)")
   }
   let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
   let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
-  logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss)")
+  let rteLoss = rte.update(architecture: &architecture, using: &rteOptimizer)
+  logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss)")
 }
