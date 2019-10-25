@@ -47,13 +47,12 @@ public struct MRPC: Task {
     let input = ArchitectureInput(text: batch.inputs)
     let problem = self.problem
     let labels = batch.labels!
-    var (loss, gradient) = architecture.valueWithGradient {
+    let (loss, gradient) = architecture.valueWithGradient {
       softmaxCrossEntropy(
         logits: $0.classify(input, problem: problem),
         labels: labels,
         reduction: { $0.mean() })
     }
-    gradient.clipByGlobalNorm(clipNorm: 10.0)
     optimizer.update(&architecture, along: gradient)
     return loss.scalarized()
   }

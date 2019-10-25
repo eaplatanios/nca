@@ -102,7 +102,8 @@ var mrpcOptimizer = WeightDecayedAdam(
   useBiasCorrection: false,
   beta1: 0.9,
   beta2: 0.999,
-  epsilon: 1e-6)
+  epsilon: 1e-6,
+  maxGradientGlobalNorm: 1.0)
 var colaOptimizer = WeightDecayedAdam(
   for: architecture,
   learningRate: ExponentiallyDecayedParameter(
@@ -117,7 +118,8 @@ var colaOptimizer = WeightDecayedAdam(
   useBiasCorrection: false,
   beta1: 0.9,
   beta2: 0.999,
-  epsilon: 1e-6)
+  epsilon: 1e-6,
+  maxGradientGlobalNorm: 1.0)
 
 logger.info("Training is starting...")
 for step in 1..<10000 {

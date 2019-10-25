@@ -38,7 +38,8 @@ public protocol Optimizer {
 /// Reference: ["Adam - A Method for Stochastic Optimization"](
 /// https://arxiv.org/abs/1412.6980v8)
 public struct Adam<Model: Differentiable, LearningRate: ScheduledParameter>: Optimizer
-where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & ElementaryFunctions,
+where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
+                           ElementaryFunctions & KeyPathIterable,
       Model.TangentVector.VectorSpaceScalar == Float,
       LearningRate.Scalar == Float {
   /// The learning rate.
@@ -52,6 +53,10 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
 
   /// A small scalar added to the denominator to improve numerical stability.
   public var epsilon: Float
+
+  /// The maximum allowed gradient global norm. If the gradients global norm is larger than this
+  /// value, then the gradients will be clipped to satisfy this constraint.
+  public var maxGradientGlobalNorm: Float?
 
   /// The current step.
   public var step: UInt64 = 0
@@ -67,7 +72,8 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-6
+    epsilon: Float = 1e-6,
+    maxGradientGlobalNorm: Float? = nil
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
@@ -76,9 +82,14 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
+    self.maxGradientGlobalNorm = maxGradientGlobalNorm
   }
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+    var direction = direction
+    if let globalNorm = maxGradientGlobalNorm {
+      direction.clipByGlobalNorm(clipNorm: globalNorm)
+    }
     step += 1
     let step = Float(self.step)
     let learningRate = self.learningRate(forStep: self.step)
@@ -100,11 +111,18 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
 /// Reference: ["Adam - A Method for Stochastic Optimization"](
 /// https://arxiv.org/abs/1412.6980v8)
 public struct WeightDecayedAdam<Model: Regularizable, LearningRate: ScheduledParameter>: Optimizer
-where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & ElementaryFunctions,
+where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
+                           ElementaryFunctions & KeyPathIterable,
       Model.TangentVector.VectorSpaceScalar == Float,
       LearningRate.Scalar == Float {
   /// The learning rate.
   public var learningRate: LearningRate
+
+  /// The weight decay rate.
+  public var weightDecayRate: Float
+
+  /// An indicator for whether or not to use bias correction.
+  public var useBiasCorrection: Bool
 
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta1: Float
@@ -115,11 +133,9 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
   /// A small scalar added to the denominator to improve numerical stability.
   public var epsilon: Float
 
-  /// The weight decay rate.
-  public var weightDecayRate: Float
-
-  /// An indicator for whether or not to use bias correction.
-  public var useBiasCorrection: Bool
+  /// The maximum allowed gradient global norm. If the gradients global norm is larger than this
+  /// value, then the gradients will be clipped to satisfy this constraint.
+  public var maxGradientGlobalNorm: Float?
 
   /// The current step.
   public var step: UInt64 = 0
@@ -137,7 +153,8 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     useBiasCorrection: Bool = true,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-6
+    epsilon: Float = 1e-6,
+    maxGradientGlobalNorm: Float? = nil
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
@@ -148,9 +165,14 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
+    self.maxGradientGlobalNorm = maxGradientGlobalNorm
   }
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+    var direction = direction
+    if let globalNorm = maxGradientGlobalNorm {
+      direction.clipByGlobalNorm(clipNorm: globalNorm)
+    }
     step += 1
     let learningRate = self.learningRate(forStep: step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
@@ -185,8 +207,8 @@ public struct AMSGrad<
 >: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
                            ElementaryFunctions & KeyPathIterable,
-  Model.TangentVector.VectorSpaceScalar == Float,
-  LearningRate.Scalar == Float {
+      Model.TangentVector.VectorSpaceScalar == Float,
+      LearningRate.Scalar == Float {
   /// The learning rate.
   public var learningRate: LearningRate
 
@@ -198,6 +220,10 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 
   /// A small scalar added to the denominator to improve numerical stability.
   public var epsilon: Float
+
+  /// The maximum allowed gradient global norm. If the gradients global norm is larger than this
+  /// value, then the gradients will be clipped to satisfy this constraint.
+  public var maxGradientGlobalNorm: Float?
 
   /// The current step.
   public var step: UInt64 = 0
@@ -216,7 +242,8 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
-    epsilon: Float = 1e-6
+    epsilon: Float = 1e-6,
+    maxGradientGlobalNorm: Float? = nil
   ) {
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
@@ -225,9 +252,14 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
+    self.maxGradientGlobalNorm = maxGradientGlobalNorm
   }
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+    var direction = direction
+    if let globalNorm = maxGradientGlobalNorm {
+      direction.clipByGlobalNorm(clipNorm: globalNorm)
+    }
     step += 1
     let step = Float(self.step)
     let learningRate = self.learningRate(forStep: self.step)
