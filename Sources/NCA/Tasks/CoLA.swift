@@ -60,7 +60,7 @@ public struct CoLA: Task {
   public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Bool]()
-    while let batch = withDevice(.cpu) { devDataIterator.next() } {
+    while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
       let predictions = architecture.classify(input, problem: problem)
       let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
