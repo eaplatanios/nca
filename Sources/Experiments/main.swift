@@ -16,6 +16,17 @@ import NCA
 import Foundation
 import TensorFlow
 
+/// Helper string interpolation extensions for logging training progress.
+extension String.StringInterpolation {
+  mutating func appendInterpolation(step value: Int) {
+    appendLiteral(String(format: "%5d", value))
+  }
+
+  mutating func appendInterpolation(loss value: Float) {
+    appendLiteral(String(format: "%.4f", value))
+  }
+}
+
 let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let ncaDir = currentDir.appendingPathComponent("temp")
 let modulesDir = ncaDir.appendingPathComponent("modules")
@@ -106,14 +117,13 @@ var colaOptimizer = WeightDecayedAdam(
   epsilon: 1e-6)
 
 for step in 1..<10000 {
-  print("Step \(step)")
   if step % 10 == 0 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
     let colaResults = cola.evaluate(using: architecture).summary
     let results =
       """
       ================
-      Evaluation
+      Step \(step) Evaluation
       ================
       MRPC Evaluation: \(mrpcResults)
       CoLA Evaluation: \(colaResults)
@@ -123,5 +133,5 @@ for step in 1..<10000 {
   }
   let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
   let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
-  print("\tMRPC Loss = \(mrpcLoss) | CoLA Loss = \(colaLoss)")
+  print("\tStep \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss)")
 }
