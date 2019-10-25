@@ -135,7 +135,7 @@ for step in 1..<10000 {
       CoLA Evaluation: \(colaResults)
       ================
       """
-    logger.info(results)
+    logger.info("\(results)")
   }
   let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
   let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
