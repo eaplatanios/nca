@@ -112,9 +112,10 @@ func createOptimizer() -> WeightDecayedAdam<SimpleArchitecture, ExponentiallyDec
     maxGradientGlobalNorm: 1.0)
 }
 
-var mrpcOptimizer = createOptimizer()
-var colaOptimizer = createOptimizer()
-var rteOptimizer = createOptimizer()
+//var mrpcOptimizer = createOptimizer()
+//var colaOptimizer = createOptimizer()
+//var rteOptimizer = createOptimizer()
+var optimizer = createOptimizer()
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
@@ -134,8 +135,8 @@ for step in 1..<10000 {
       """
     logger.info("\(results)")
   }
-  let mrpcLoss = mrpc.update(architecture: &architecture, using: &mrpcOptimizer)
-  let colaLoss = cola.update(architecture: &architecture, using: &colaOptimizer)
-  let rteLoss = rte.update(architecture: &architecture, using: &rteOptimizer)
+  let mrpcLoss = mrpc.update(architecture: &architecture, using: &optimizer)
+  let colaLoss = cola.update(architecture: &architecture, using: &optimizer)
+  let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
   logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss)")
 }
