@@ -88,34 +88,35 @@ var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
   hiddenSize: 512,
   contextEmbeddingSize: 4,
-  reasoningHiddenSize: 512)
+  reasoningHiddenSize: 512,
+  bertLearningRate: ExponentiallyDecayedParameter(
+    baseParameter: LinearlyWarmedUpParameter(
+      baseParameter: FixedParameter(Float(2e-5)),
+      warmUpStepCount: 14,
+      warmUpOffset: 0),
+    decayRate: 0.99,
+    decayStepCount: 1,
+    startStep: 14),
+  learningRate: ExponentiallyDecayedParameter(
+    baseParameter: LinearlyWarmedUpParameter(
+      baseParameter: FixedParameter(Float(1e-4)),
+      warmUpStepCount: 100,
+      warmUpOffset: 0),
+    decayRate: 0.99,
+    decayStepCount: 1,
+    startStep: 100))
 try! architecture.textPerception.load(
   preTrainedModel: .base(cased: false, multilingual: false),
   from: bertDir)
 
-func createOptimizer() -> WeightDecayedAdam<SimpleArchitecture, ExponentiallyDecayedParameter<LinearlyWarmedUpParameter<FixedParameter<Float>>>> {
-  WeightDecayedAdam(
-    for: architecture,
-    learningRate: ExponentiallyDecayedParameter(
-      baseParameter: LinearlyWarmedUpParameter(
-        baseParameter: FixedParameter(Float(2e-5)),
-        warmUpStepCount: 14,
-        warmUpOffset: 0),
-      decayRate: 0.99,
-      decayStepCount: 1,
-      startStep: 1000),
-    weightDecayRate: 0.01,
-    useBiasCorrection: false,
-    beta1: 0.9,
-    beta2: 0.999,
-    epsilon: 1e-6,
-    maxGradientGlobalNorm: 1.0)
-}
-
-//var mrpcOptimizer = createOptimizer()
-//var colaOptimizer = createOptimizer()
-//var rteOptimizer = createOptimizer()
-var optimizer = createOptimizer()
+var optimizer = WeightDecayedAdam(
+  for: architecture,
+  weightDecayRate: 0.01,
+  useBiasCorrection: false,
+  beta1: 0.9,
+  beta2: 0.999,
+  epsilon: 1e-6,
+  maxGradientGlobalNorm: 1.0)
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
@@ -135,8 +136,10 @@ for step in 1..<10000 {
       """
     logger.info("\(results)")
   }
-  let mrpcLoss = mrpc.update(architecture: &architecture, using: &optimizer)
-  let colaLoss = cola.update(architecture: &architecture, using: &optimizer)
-  let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
+  let (mrpcLoss, mrpcGradient) = mrpc.loss(architecture: architecture)
+  let (colaLoss, colaGradient) = cola.loss(architecture: architecture)
+  let (rteLoss, rteGradient) = rte.loss(architecture: architecture)
+  let gradient = mrpcGradient + colaGradient + rteGradient
+  architecture.update(along: optimizer.update(for: architecture, along: gradient))
   logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss)")
 }

@@ -29,22 +29,21 @@ public protocol Optimizer {
   /// The type of the model whose parameters are optimized.
   associatedtype Model: Differentiable
 
-  /// Updates the specified differentiable variables along the specified direction.
-  mutating func update(_ variables: inout Model, along direction: Model.TangentVector)
+  /// Returns an update that can be later applied to the model.
+  mutating func update(
+    for model: Model,
+    along direction: Model.TangentVector
+  ) -> Model.TangentVector
 }
 
 /// Adam optimizer.
 ///
 /// Reference: ["Adam - A Method for Stochastic Optimization"](
 /// https://arxiv.org/abs/1412.6980v8)
-public struct Adam<Model: Differentiable, LearningRate: ScheduledParameter>: Optimizer
+public struct Adam<Model: Differentiable>: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
                            ElementaryFunctions & KeyPathIterable,
-      Model.TangentVector.VectorSpaceScalar == Float,
-      LearningRate.Scalar == Float {
-  /// The learning rate.
-  public var learningRate: LearningRate
-
+      Model.TangentVector.VectorSpaceScalar == Float {
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta1: Float
 
@@ -69,7 +68,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 
   public init(
     for model: __shared Model,
-    learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
     epsilon: Float = 1e-6,
@@ -78,31 +76,32 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
 
-    self.learningRate = learningRate
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
     self.maxGradientGlobalNorm = maxGradientGlobalNorm
   }
 
-  public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+  public mutating func update(
+    for model: Model,
+    along direction: Model.TangentVector
+  ) -> Model.TangentVector {
     var direction = direction
     if let globalNorm = maxGradientGlobalNorm {
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
     let step = Float(self.step)
-    let learningRate = self.learningRate(forStep: self.step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
     // unable to type-check this expression in reasonable time" error.
-    var stepSize = learningRate * sqrt(1 - pow(beta2, step))
+    var stepSize = sqrt(1 - pow(beta2, step))
     stepSize = stepSize / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
     let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
-    model.move(along: firstMoments.scaled(by: -stepSize) ./ denominator)
+    return firstMoments.scaled(by: -stepSize) ./ denominator
   }
 }
 
@@ -110,14 +109,10 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 ///
 /// Reference: ["Adam - A Method for Stochastic Optimization"](
 /// https://arxiv.org/abs/1412.6980v8)
-public struct WeightDecayedAdam<Model: Regularizable, LearningRate: ScheduledParameter>: Optimizer
+public struct WeightDecayedAdam<Model: Regularizable>: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
                            ElementaryFunctions & KeyPathIterable,
-      Model.TangentVector.VectorSpaceScalar == Float,
-      LearningRate.Scalar == Float {
-  /// The learning rate.
-  public var learningRate: LearningRate
-
+      Model.TangentVector.VectorSpaceScalar == Float {
   /// The weight decay rate.
   public var weightDecayRate: Float
 
@@ -148,7 +143,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 
   public init(
     for model: __shared Model,
-    learningRate: LearningRate,
     weightDecayRate: Float = 0.01,
     useBiasCorrection: Bool = true,
     beta1: Float = 0.9,
@@ -159,7 +153,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
 
-    self.learningRate = learningRate
     self.weightDecayRate = weightDecayRate
     self.useBiasCorrection = useBiasCorrection
     self.beta1 = beta1
@@ -168,16 +161,18 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     self.maxGradientGlobalNorm = maxGradientGlobalNorm
   }
 
-  public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+  public mutating func update(
+    for model: Model,
+    along direction: Model.TangentVector
+  ) -> Model.TangentVector {
     var direction = direction
     if let globalNorm = maxGradientGlobalNorm {
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    let learningRate = self.learningRate(forStep: step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
     // unable to type-check this expression in reasonable time" error.
-    var stepSize = learningRate
+    var stepSize = Float(1)
     if useBiasCorrection {
       let step = Float(self.step)
       stepSize *= sqrt(1 - pow(beta2, step))
@@ -190,7 +185,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
     let update = (firstMoments ./ denominator) + weightDecay
-    model.move(along: update.scaled(by: -stepSize))
+    return update.scaled(by: -stepSize)
   }
 }
 
@@ -201,17 +196,10 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 ///
 /// Reference: ["On the Convergence of Adam and Beyond"](
 /// https://openreview.net/pdf?id=ryQu7f-RZ)
-public struct AMSGrad<
-  Model: Differentiable & KeyPathIterable,
-  LearningRate: ScheduledParameter
->: Optimizer
+public struct AMSGrad<Model: Differentiable & KeyPathIterable>: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
                            ElementaryFunctions & KeyPathIterable,
-      Model.TangentVector.VectorSpaceScalar == Float,
-      LearningRate.Scalar == Float {
-  /// The learning rate.
-  public var learningRate: LearningRate
-
+      Model.TangentVector.VectorSpaceScalar == Float {
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta1: Float
 
@@ -239,7 +227,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 
   public init(
     for model: __shared Model,
-    learningRate: LearningRate,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
     epsilon: Float = 1e-6,
@@ -248,26 +235,27 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
     precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
 
-    self.learningRate = learningRate
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
     self.maxGradientGlobalNorm = maxGradientGlobalNorm
   }
 
-  public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
+  public mutating func update(
+    for model: Model,
+    along direction: Model.TangentVector
+  ) -> Model.TangentVector {
     var direction = direction
     if let globalNorm = maxGradientGlobalNorm {
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
     let step = Float(self.step)
-    let learningRate = self.learningRate(forStep: self.step)
     let beta1Power = pow(beta1, step)
     let beta2Power = pow(beta2, step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
     // unable to type-check this expression in reasonable time" error.
-    var stepSize = learningRate * sqrt(1 - pow(beta2Power, step))
+    var stepSize = sqrt(1 - pow(beta2Power, step))
     stepSize = stepSize / (1 - pow(beta1Power, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
@@ -286,6 +274,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     }
 
     let denominator = Model.TangentVector.sqrt(secondMomentsMax).adding(epsilon)
-    model.move(along: firstMoments.scaled(by: -stepSize) ./ denominator)
+    return firstMoments.scaled(by: -stepSize) ./ denominator
   }
 }
