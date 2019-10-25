@@ -107,7 +107,7 @@ public struct SimpleArchitecture: Architecture {
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: Linear<Float>
   public var reasoning: ContextualizedLayer<Sequential<Linear<Float>, Linear<Float>>, Linear<Float>>
-  public var reasoningLayerNormalization: ContextualizedLayer<LayerNormalization<Float>, Linear<Float>>
+  public var reasoningLayerNormalization: LayerNormalization<Float>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -174,16 +174,9 @@ public struct SimpleArchitecture: Architecture {
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
-    let reasoningLayerNormalization = LayerNormalization<Float>(
+    self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
-    self.reasoningLayerNormalization = ContextualizedLayer(
-      base: reasoningLayerNormalization,
-      generator: Linear<Float>(
-        inputSize: contextEmbeddingSize,
-        outputSize: reasoningLayerNormalization.parameterCount,
-        weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
   }
 
   @differentiable
@@ -214,9 +207,7 @@ public struct SimpleArchitecture: Architecture {
     let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
     let contextualizedInput = ContextualizedInput(input: input, context: context)
     // We are adding a skip connection here to help the training process.
-    return reasoningLayerNormalization(ContextualizedInput(
-      input: input + reasoning(contextualizedInput),
-      context: context))
+    return reasoningLayerNormalization(input + reasoning(contextualizedInput))
   }
 
   @differentiable
