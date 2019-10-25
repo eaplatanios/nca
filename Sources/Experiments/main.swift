@@ -85,6 +85,7 @@ var mrpcOptimizer = WeightDecayedAdam(
     decayStepCount: 1,
     startStep: 1000),
   weightDecayRate: 0.01,
+  useBiasCorrection: false,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6)
@@ -99,6 +100,7 @@ var colaOptimizer = WeightDecayedAdam(
     decayStepCount: 1,
     startStep: 1000),
   weightDecayRate: 0.01,
+  useBiasCorrection: false,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6)

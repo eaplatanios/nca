@@ -118,6 +118,9 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
   /// The weight decay rate.
   public var weightDecayRate: Float
 
+  /// An indicator for whether or not to use bias correction.
+  public var useBiasCorrection: Bool
+
   /// The current step.
   public var step: UInt64 = 0
 
@@ -131,6 +134,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
     for model: __shared Model,
     learningRate: LearningRate,
     weightDecayRate: Float = 0.01,
+    useBiasCorrection: Bool = true,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
     epsilon: Float = 1e-6
@@ -140,6 +144,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
 
     self.learningRate = learningRate
     self.weightDecayRate = weightDecayRate
+    self.useBiasCorrection = useBiasCorrection
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
@@ -147,14 +152,15 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative & Elementary
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
     step += 1
-    let step = Float(self.step)
-    let learningRate = self.learningRate(forStep: self.step)
+    let learningRate = self.learningRate(forStep: step)
     // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
     // unable to type-check this expression in reasonable time" error.
-    // TODO: !!! Bias correction.
-    // var stepSize = learningRate * sqrt(1 - pow(beta2, step))
-    // stepSize = stepSize / (1 - pow(beta1, step))
-    let stepSize = learningRate
+    var stepSize = learningRate
+    if useBiasCorrection {
+      let step = Float(self.step)
+      stepSize *= sqrt(1 - pow(beta2, step))
+      stepSize /= 1 - pow(beta1, step)
+    }
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
