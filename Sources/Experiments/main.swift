@@ -83,6 +83,11 @@ var rte = try! RTE(
   textTokenizer: textTokenizer,
   maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
+var sst = try! SST(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  batchSize: 32)
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
@@ -121,6 +126,7 @@ for step in 1..<10000 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
     let colaResults = cola.evaluate(using: architecture).summary
     let rteResults = rte.evaluate(using: architecture).summary
+    let sstResults = sst.evaluate(using: architecture).summary
     let results =
       """
       ================
@@ -129,6 +135,7 @@ for step in 1..<10000 {
       MRPC Evaluation: \(mrpcResults)
       CoLA Evaluation: \(colaResults)
       RTE Evaluation: \(rteResults)
+      SST Evaluation: \(sstResults)
       ================
       """
     logger.info("\(results)")
@@ -136,7 +143,8 @@ for step in 1..<10000 {
   let (mrpcLoss, mrpcGradient) = mrpc.loss(architecture: architecture)
   let (colaLoss, colaGradient) = cola.loss(architecture: architecture)
   let (rteLoss, rteGradient) = rte.loss(architecture: architecture)
-  let gradient = mrpcGradient + colaGradient + rteGradient
+  let (sstLoss, sstGradient) = sst.loss(architecture: architecture)
+  let gradient = mrpcGradient + colaGradient + rteGradient + sstGradient
   architecture.update(along: optimizer.update(for: architecture, along: gradient))
-  logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss)")
+  logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss) | SST Loss = \(loss: sstLoss)")
 }

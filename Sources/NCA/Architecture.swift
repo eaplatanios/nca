@@ -67,6 +67,7 @@ public enum Context: Int, CaseIterable {
   case grammaticalCorrectness = 0
   case paraphrasing = 1
   case entailment = 2
+  case sentiment = 3
 }
 
 public enum Concept: Int, CaseIterable {
