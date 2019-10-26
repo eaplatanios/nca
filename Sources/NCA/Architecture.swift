@@ -114,7 +114,7 @@ public struct SimpleArchitecture<
   public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
-  public var textPoolingOutputDense: Affine<Float>
+  public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
 
@@ -164,11 +164,18 @@ public struct SimpleArchitecture<
       valueActivation: { $0 },
       attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
       matrixResult: true)
-    self.textPoolingOutputDense = Affine<Float>(
+    let textPoolingOutputDenseBase = Affine<Float>(
       inputSize: bertConfiguration.hiddenSize,
       outputSize: hiddenSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+    self.textPoolingOutputDense = ContextualizedLayer(
+      base: textPoolingOutputDenseBase,
+      generator: Linear<Float>(
+        inputSize: contextEmbeddingSize,
+        outputSize: textPoolingOutputDenseBase.parameterCount,
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
     let reasoningBase = Sequential(
       Affine<Float>(
         inputSize: hiddenSize,
@@ -214,7 +221,9 @@ public struct SimpleArchitecture<
       target: perceivedText,
       mask: Tensor<Float>(text.mask.expandingShape(at: 1)))
     let pooledPerceivedText = textPoolingMultiHeadAttention(attentionInput)
-    return textPoolingOutputDense(pooledPerceivedText)
+    return textPoolingOutputDense(ContextualizedInput(
+      input: pooledPerceivedText,
+      context: context))
   }
 
   @differentiable
