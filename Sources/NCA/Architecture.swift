@@ -112,10 +112,10 @@ public struct SimpleArchitecture<
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
   public var textPerception: BERT
-  public var textPoolingQueryDense: Linear<Float>
+  public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
-  public var textPoolingOutputDense: Linear<Float>
-  public var reasoning: ContextualizedLayer<Sequential<Linear<Float>, Linear<Float>>, Linear<Float>>
+  public var textPoolingOutputDense: Affine<Float>
+  public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
 
   public var regularizationValue: TangentVector {
@@ -149,7 +149,7 @@ public struct SimpleArchitecture<
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
     self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
     self.textPerception = BERT(configuration: bertConfiguration)
-    self.textPoolingQueryDense = Linear<Float>(
+    self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
       outputSize: bertConfiguration.hiddenSize,
       weightInitializer: truncatedNormalInitializer(
@@ -164,19 +164,19 @@ public struct SimpleArchitecture<
       valueActivation: { $0 },
       attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
       matrixResult: true)
-    self.textPoolingOutputDense = Linear<Float>(
+    self.textPoolingOutputDense = Affine<Float>(
       inputSize: bertConfiguration.hiddenSize,
       outputSize: hiddenSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
     let reasoningBase = Sequential(
-      Linear<Float>(
+      Affine<Float>(
         inputSize: hiddenSize,
         outputSize: reasoningHiddenSize,
         activation: bertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
-      Linear<Float>(
+      Affine<Float>(
         inputSize: reasoningHiddenSize,
         outputSize: hiddenSize,
         activation: bertConfiguration.intermediateActivation.activationFunction(),
@@ -246,6 +246,7 @@ public struct SimpleArchitecture<
   }
 
   public mutating func update(along direction: TangentVector) {
+    step += 1
     let bertLearningRate = self.bertLearningRate(forStep: step)
     let learningRate = self.learningRate(forStep: step)
     contextEmbeddings.move(along: direction.contextEmbeddings.scaled(by: learningRate))

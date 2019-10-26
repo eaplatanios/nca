@@ -14,17 +14,56 @@
 
 import TensorFlow
 
+/// A densely-connected neural network layer without a bias term.
+///
+/// `Linear` implements the operation `activation(matmul(input, weight))`, where `weight` is a
+/// weight matrix and `activation` is an element-wise activation function.
+public struct Linear<Scalar: TensorFlowFloatingPoint>: Layer, Regularizable {
+  /// The weight matrix.
+  public var weight: Tensor<Scalar>
+
+  /// The element-wise activation function.
+  @noDerivative public let activation: Activation<Scalar>
+
+  public var regularizationValue: TangentVector {
+    TangentVector(weight: weight)
+  }
+
+  /// Creates a linear layer with the specified input size, output size, and element-wise
+  /// activation function. The weight matrix is created with shape `[inputSize, outputSize]` and
+  /// the bias vector is created with shape `[outputSize]`.
+  ///
+  /// - Parameters:
+  ///   - inputSize: The dimensionality of the input space.
+  ///   - outputSize: The dimensionality of the output space.
+  ///   - activation: The activation function to use. The default value is `identity(_:)`.
+  ///   - weightInitializer: Initializer to use for `weight`.
+  init(
+    inputSize: Int,
+    outputSize: Int,
+    activation: @escaping Activation<Scalar> = identity,
+    weightInitializer: ParameterInitializer<Scalar> = glorotUniform()
+  ) {
+    self.weight = weightInitializer([inputSize, outputSize])
+    self.activation = activation
+  }
+
+  /// Returns the output obtained from applying the layer to the given input.
+  ///
+  /// - Parameter input: The input to the layer.
+  /// - Returns: The output.
+  @differentiable
+  public func callAsFunction(_ input: Tensor<Scalar>) -> Tensor<Scalar> {
+    activation(matmul(input, weight))
+  }
+}
+
 /// A densely-connected neural network layer.
 ///
-/// `Dense` implements the operation `activation(matmul(input, weight) + bias)`, where `weight` is
+/// `Affine` implements the operation `activation(matmul(input, weight) + bias)`, where `weight` is
 /// a weight matrix, `bias` is a bias vector, and `activation` is an element-wise activation
 /// function.
-///
-/// This layer also supports 3-D weight tensors with 2-D bias matrices. In this case the first
-/// dimension of both is treated as the batch size that is aligned with the first dimension of
-/// `input` and the batch variant of the `matmul(_:_:)` operation is used, thus using a different
-/// weight and bias for each element in input batch.
-public struct Linear<Scalar: TensorFlowFloatingPoint>: Layer, Regularizable {
+public struct Affine<Scalar: TensorFlowFloatingPoint>: Layer, Regularizable {
   /// The weight matrix.
   public var weight: Tensor<Scalar>
 
