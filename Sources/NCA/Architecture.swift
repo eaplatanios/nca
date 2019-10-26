@@ -104,7 +104,6 @@ public struct SimpleArchitecture<
   LearningRate: ScheduledParameter
 >: Architecture where BERTLearningRate.Scalar == Float, LearningRate.Scalar == Float {
   @noDerivative public let contextEmbeddingSize: Int
-  @noDerivative public let conceptEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
   @noDerivative public let bertLearningRate: BERTLearningRate
   @noDerivative public let learningRate: LearningRate
@@ -118,7 +117,6 @@ public struct SimpleArchitecture<
   public var textPoolingOutputDense: Affine<Float>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
-  public var conceptProjection: ContextualizedLayer<Affine<Float>, Linear<Float>>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -129,15 +127,13 @@ public struct SimpleArchitecture<
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
       reasoning: reasoning.regularizationValue,
-      reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue,
-      conceptProjection: conceptProjection.regularizationValue)
+      reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue)
   }
 
   public init(
     bertConfiguration: BERT.Configuration,
     hiddenSize: Int,
     contextEmbeddingSize: Int,
-    conceptEmbeddingSize: Int,
     reasoningHiddenSize: Int,
     bertLearningRate: BERTLearningRate,
     learningRate: LearningRate,
@@ -145,14 +141,13 @@ public struct SimpleArchitecture<
   ) {
     self.hiddenSize = hiddenSize
     self.contextEmbeddingSize = contextEmbeddingSize
-    self.conceptEmbeddingSize = contextEmbeddingSize
     self.bertLearningRate = bertLearningRate
     self.learningRate = learningRate
     self.step = step
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
-    self.conceptEmbeddings = initializer([Concept.allCases.count, conceptEmbeddingSize])
+    self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
     self.textPerception = BERT(configuration: bertConfiguration)
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
@@ -197,18 +192,6 @@ public struct SimpleArchitecture<
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
-    let conceptProjectionBase = Affine<Float>(
-      inputSize: conceptEmbeddingSize,
-      outputSize: hiddenSize,
-      weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
-    self.conceptProjection = ContextualizedLayer(
-      base: conceptProjectionBase,
-      generator: Linear<Float>(
-        inputSize: contextEmbeddingSize,
-        outputSize: conceptProjectionBase.parameterCount,
-        weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
   }
 
   @differentiable
@@ -247,9 +230,7 @@ public struct SimpleArchitecture<
     let conceptIds = withoutDerivative(at: problem.concepts) {
       Tensor($0.map { Int32($0.rawValue) })
     }
-    let concepts = conceptEmbeddings.gathering(atIndices: conceptIds)
-    let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
-    let classes = conceptProjection(ContextualizedInput(input: concepts, context: context))
+    let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
     let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
     return logSoftmax(logits)
   }
@@ -259,9 +240,7 @@ public struct SimpleArchitecture<
     let conceptIds = withoutDerivative(at: problem.concepts) {
       Tensor($0.map { Int32($0.rawValue) })
     }
-    let concepts = conceptEmbeddings.gathering(atIndices: conceptIds)
-    let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
-    let classes = conceptProjection(ContextualizedInput(input: concepts, context: context))
+    let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
     let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
     return logSigmoid(logits)
   }
@@ -278,6 +257,5 @@ public struct SimpleArchitecture<
     textPoolingOutputDense.move(along: direction.textPoolingOutputDense.scaled(by: learningRate))
     reasoning.move(along: direction.reasoning.scaled(by: learningRate))
     reasoningLayerNormalization.move(along: direction.reasoningLayerNormalization.scaled(by: learningRate))
-    conceptProjection.move(along: direction.conceptProjection.scaled(by: learningRate))
   }
 }
