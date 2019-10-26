@@ -99,7 +99,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
     let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
     let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
-    return correctedFirstMoments ./ denominator
+    return correctedFirstMoments.scaled(by: -1) ./ denominator
   }
 }
 
@@ -181,7 +181,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     }
     let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    return (correctedFirstMoments ./ denominator) + weightDecay
+    return (correctedFirstMoments.scaled(by: -1) ./ denominator) - weightDecay
   }
 }
 
@@ -267,7 +267,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
     let correctedSecondMomentsMax = secondMomentsMax.scaled(by: 1 / pow(beta2, step))
     let denominator = Model.TangentVector.sqrt(correctedSecondMomentsMax).adding(epsilon)
-    return correctedFirstMoments ./ denominator
+    return correctedFirstMoments.scaled(by: -1) ./ denominator
   }
 }
 
