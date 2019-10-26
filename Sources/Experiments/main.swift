@@ -86,9 +86,10 @@ var rte = try! RTE(
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
-  hiddenSize: 512,
-  contextEmbeddingSize: 4,
-  reasoningHiddenSize: 512,
+  hiddenSize: 128,
+  contextEmbeddingSize: 16,
+  conceptEmbeddingSize: 16,
+  reasoningHiddenSize: 128,
   bertLearningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
       baseParameter: FixedParameter(Float(2e-5)),
@@ -105,9 +106,7 @@ var architecture = SimpleArchitecture(
     decayRate: 0.99,
     decayStepCount: 1,
     startStep: 100))
-try! architecture.textPerception.load(
-  preTrainedModel: .base(cased: false, multilingual: false),
-  from: bertDir)
+try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
 var optimizer = WeightDecayedAdam(
   for: architecture,
