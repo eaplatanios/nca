@@ -91,17 +91,15 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    let step = Float(self.step)
-    // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
-    // unable to type-check this expression in reasonable time" error.
-    var stepSize = sqrt(1 - pow(beta2, step))
-    stepSize = stepSize / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
-    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
-    return firstMoments.scaled(by: -stepSize) ./ denominator
+    let step = Float(self.step)
+    let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
+    let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
+    let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
+    return correctedFirstMoments ./ denominator
   }
 }
 
@@ -170,22 +168,20 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
-    // unable to type-check this expression in reasonable time" error.
-    var stepSize = Float(1)
-    if useBiasCorrection {
-      let step = Float(self.step)
-      stepSize *= sqrt(1 - pow(beta2, step))
-      stepSize /= 1 - pow(beta1, step)
-    }
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
-    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
+    var correctedFirstMoments = firstMoments
+    var correctedSecondMoments = secondMoments
+    if useBiasCorrection {
+      let step = Float(self.step)
+      correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
+      correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
+    }
+    let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    let update = (firstMoments ./ denominator) + weightDecay
-    return update.scaled(by: -stepSize)
+    return (correctedFirstMoments ./ denominator) + weightDecay
   }
 }
 
@@ -250,13 +246,6 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    let step = Float(self.step)
-    let beta1Power = pow(beta1, step)
-    let beta2Power = pow(beta2, step)
-    // Note: `stepSize` and `secondMoments` are split into two lines to avoid the "compiler is
-    // unable to type-check this expression in reasonable time" error.
-    var stepSize = sqrt(1 - pow(beta2Power, step))
-    stepSize = stepSize / (1 - pow(beta1Power, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
@@ -264,6 +253,7 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 
     // Update `secondMomentsMax` using a key path approach because `max(_:_:)` cannot be
     // currently applied in a simpler manner.
+    if step == 1 { secondMomentsMax = secondMoments }
     for kp in secondMomentsMax.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
       secondMomentsMax[keyPath: kp] = max(
         secondMomentsMax[keyPath: kp], secondMoments[keyPath: kp])
@@ -273,7 +263,102 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
         secondMomentsMax[keyPath: kp], secondMoments[keyPath: kp])
     }
 
-    let denominator = Model.TangentVector.sqrt(secondMomentsMax).adding(epsilon)
-    return firstMoments.scaled(by: -stepSize) ./ denominator
+    let step = Float(self.step)
+    let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
+    let correctedSecondMomentsMax = secondMomentsMax.scaled(by: 1 / pow(beta2, step))
+    let denominator = Model.TangentVector.sqrt(correctedSecondMomentsMax).adding(epsilon)
+    return correctedFirstMoments ./ denominator
+  }
+}
+
+/// LAMB optimizer.
+///
+/// Reference: ["Large Batch Optimization for Deep Learning"](
+///              https://arxiv.org/abs/1904.00962)
+public struct LAMB<Model: Regularizable & KeyPathIterable>: Optimizer
+where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
+                           ElementaryFunctions & KeyPathIterable,
+      Model.TangentVector.VectorSpaceScalar == Float {
+  /// The weight decay rate.
+  public var weightDecayRate: Float
+
+  /// A coefficient used to calculate the first and second moments of the gradients.
+  public var beta1: Float
+
+  /// A coefficient used to calculate the first and second moments of the gradients.
+  public var beta2: Float
+
+  /// A small scalar added to the denominator to improve numerical stability.
+  public var epsilon: Float
+
+  /// The maximum allowed gradient global norm. If the gradients global norm is larger than this
+  /// value, then the gradients will be clipped to satisfy this constraint.
+  public var maxGradientGlobalNorm: Float?
+
+  /// The current step.
+  public var step: Int = 0
+
+  /// The first moments of the weights.
+  public var firstMoments: Model.TangentVector = .zero
+
+  /// The second moments of the weights.
+  public var secondMoments: Model.TangentVector = .zero
+
+  public init(
+    for model: __shared Model,
+    weightDecayRate: Float = 0.01,
+    beta1: Float = 0.9,
+    beta2: Float = 0.999,
+    epsilon: Float = 1e-6,
+    maxGradientGlobalNorm: Float? = nil
+  ) {
+    precondition(0 <= beta1 && beta1 <= 1, "Beta parameter must be between 0 and 1")
+    precondition(0 <= beta2 && beta2 <= 1, "Beta parameter must be between 0 and 1")
+
+    self.weightDecayRate = weightDecayRate
+    self.beta1 = beta1
+    self.beta2 = beta2
+    self.epsilon = epsilon
+    self.maxGradientGlobalNorm = maxGradientGlobalNorm
+  }
+
+  public mutating func update(
+    for model: Model,
+    along direction: Model.TangentVector
+  ) -> Model.TangentVector {
+    var direction = direction
+    if let globalNorm = maxGradientGlobalNorm {
+      direction.clipByGlobalNorm(clipNorm: globalNorm)
+    }
+    step += 1
+    firstMoments = firstMoments.scaled(by: beta1)
+    firstMoments += direction.scaled(by: 1 - beta1)
+    secondMoments = secondMoments.scaled(by: beta2)
+    secondMoments += direction .* direction.scaled(by: 1 - beta2)
+    let step = Float(self.step)
+    let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
+    let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
+    let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
+    let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
+    var update = (correctedFirstMoments ./ denominator) + weightDecay
+    for (kp, modelKp) in zip(
+      update.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self),
+      model.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self)
+    ) {
+      let r1 = sqrt((model[keyPath: modelKp] * model[keyPath: modelKp]).sum())
+      let r2 = sqrt((update[keyPath: kp] * update[keyPath: kp]).sum())
+      let r = r1 / r2
+      update[keyPath: kp] = update[keyPath: kp] * r
+    }
+    for (kp, modelKp) in zip(
+      update.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self),
+      model.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self)
+    ) {
+      let r1 = sqrt((model[keyPath: modelKp] * model[keyPath: modelKp]).sum())
+      let r2 = sqrt((update[keyPath: kp] * update[keyPath: kp]).sum())
+      let r = r1 / r2
+      update[keyPath: kp] = update[keyPath: kp] * r
+    }
+    return update
   }
 }

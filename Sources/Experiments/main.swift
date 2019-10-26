@@ -107,10 +107,9 @@ var architecture = SimpleArchitecture(
     startStep: 30))
 try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
-var optimizer = WeightDecayedAdam(
+var optimizer = LAMB(
   for: architecture,
   weightDecayRate: 0.01,
-  useBiasCorrection: false,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,
