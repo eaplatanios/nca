@@ -345,20 +345,24 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
       update.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self)
     ) {
-      let r1 = sqrt((model[keyPath: modelKp] * model[keyPath: modelKp]).sum())
-      let r2 = sqrt((update[keyPath: kp] * update[keyPath: kp]).sum())
-      let r = r1 / r2
+      let r1 = sqrt((model[keyPath: modelKp].squared()).sum())
+      let r2 = sqrt((update[keyPath: kp].squared()).sum())
+      let r = (r1 / r2).replacing(
+        with: Tensor<Float>(1),
+        where: (r1 .<= 0).elementsLogicalAnd(r2 .<= 0))
       update[keyPath: kp] = update[keyPath: kp] * r
     }
     for (kp, modelKp) in zip(
       update.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self)
     ) {
-      let r1 = sqrt((model[keyPath: modelKp] * model[keyPath: modelKp]).sum())
-      let r2 = sqrt((update[keyPath: kp] * update[keyPath: kp]).sum())
-      let r = r1 / r2
+      let r1 = sqrt((model[keyPath: modelKp].squared()).sum())
+      let r2 = sqrt((update[keyPath: kp].squared()).sum())
+      let r = (r1 / r2).replacing(
+        with: Tensor<Double>(1),
+        where: (r1 .<= 0).elementsLogicalAnd(r2 .<= 0))
       update[keyPath: kp] = update[keyPath: kp] * r
     }
-    return update
+    return update.scaled(by: -1)
   }
 }

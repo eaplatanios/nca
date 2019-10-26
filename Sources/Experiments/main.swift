@@ -86,25 +86,25 @@ var rte = try! RTE(
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
-  hiddenSize: 128,
-  contextEmbeddingSize: 512,
-  reasoningHiddenSize: 128,
+  hiddenSize: 512,
+  contextEmbeddingSize: 4,
+  reasoningHiddenSize: 512,
   bertLearningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
       baseParameter: FixedParameter(Float(1e-4)),
-      warmUpStepCount: 30,
+      warmUpStepCount: 100,
       warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
-    startStep: 30),
+    startStep: 100),
   learningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
       baseParameter: FixedParameter(Float(1e-4)),
-      warmUpStepCount: 30,
+      warmUpStepCount: 100,
       warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
-    startStep: 30))
+    startStep: 100))
 try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
 var optimizer = LAMB(
@@ -113,7 +113,7 @@ var optimizer = LAMB(
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,
-  maxGradientGlobalNorm: 1.0)
+  maxGradientGlobalNorm: nil)
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
