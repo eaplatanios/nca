@@ -77,7 +77,7 @@ var sst = try! SST(
 var architecture = SimpleArchitecture(
   albertConfiguration: albertConfiguration,
   hiddenSize: 512,
-  contextEmbeddingSize: 4,
+  contextEmbeddingSize: 16,
   reasoningHiddenSize: 512,
   albertLearningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
@@ -103,7 +103,7 @@ var optimizer = LAMB(
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,
-  maxGradientGlobalNorm: nil)
+  maxGradientGlobalNorm: 1.0)
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
