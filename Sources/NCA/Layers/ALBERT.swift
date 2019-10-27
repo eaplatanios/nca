@@ -387,6 +387,7 @@ extension ALBERT {
 
     // Load the model.
     load(fromTensorFlowCheckpoint: directory
+      .appendingPathComponent(model.name)
       .appendingPathComponent("variables")
       .appendingPathComponent("variables"))
   }
@@ -446,16 +447,16 @@ extension ALBERT {
           named: "bert/encoder/transformer/group_\(layerIndex)/inner_group_0/LayerNorm/gamma"))
       transformerEncoderLayers[layerIndex].intermediateWeight =
         Tensor(checkpointReader.loadTensor(
-          named: "bert/encoder/transformer/group_\(layerIndex)/ffn_1/intermediate/dense/kernel"))
+          named: "bert/encoder/transformer/group_\(layerIndex)/inner_group_0/ffn_1/intermediate/dense/kernel"))
       transformerEncoderLayers[layerIndex].intermediateBias =
         Tensor(checkpointReader.loadTensor(
-          named: "bert/encoder/transformer/group_\(layerIndex)/ffn_1/intermediate/dense/bias"))
+          named: "bert/encoder/transformer/group_\(layerIndex)/inner_group_0/ffn_1/intermediate/dense/bias"))
       transformerEncoderLayers[layerIndex].outputWeight =
         Tensor(checkpointReader.loadTensor(
-          named: "bert/encoder/transformer/group_\(layerIndex)/ffn_1/intermediate/output/dense/kernel"))
+          named: "bert/encoder/transformer/group_\(layerIndex)/inner_group_0/ffn_1/intermediate/output/dense/kernel"))
       transformerEncoderLayers[layerIndex].outputBias =
         Tensor(checkpointReader.loadTensor(
-          named: "bert/encoder/transformer/group_\(layerIndex)/ffn_1/intermediate/output/dense/bias"))
+          named: "bert/encoder/transformer/group_\(layerIndex)/inner_group_0/ffn_1/intermediate/output/dense/bias"))
       transformerEncoderLayers[layerIndex].outputLayerNormalization.offset =
         Tensor(checkpointReader.loadTensor(
           named: "bert/encoder/transformer/group_\(layerIndex)/inner_group_0/LayerNorm_1/beta"))
