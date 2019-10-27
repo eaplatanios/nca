@@ -356,33 +356,29 @@ public struct LAMB<
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
     let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    var update = firstMoments ./ denominator + weightDecay
+    let update = firstMoments ./ denominator + weightDecay
+    var learningRate = self.learningRate(forStep: step)
+    if useBiasCorrection {
+      let step = Float(self.step)
+      learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
+    }
     for (kp, modelKp) in zip(
       update.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self)
     ) {
-      let r1 = sqrt((model[keyPath: modelKp].squared()).sum())
-      let r2 = sqrt((update[keyPath: kp].squared()).sum())
-      let r = (r1 / r2).replacing(
-        with: Tensor<Float>(1),
-        where: (r1 .<= 0).elementsLogicalOr(r2 .<= 0))
-      update[keyPath: kp] = update[keyPath: kp] * r
+      let r1 = sqrt((model[keyPath: modelKp].squared()).sum()).scalarized()
+      let r2 = sqrt((update[keyPath: kp].squared()).sum()).scalarized()
+      let r = r1 > 0 && r2 > 0 ? r1 / r2 : 1
+      learningRate *= r
     }
     for (kp, modelKp) in zip(
       update.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self)
     ) {
-      let r1 = sqrt((model[keyPath: modelKp].squared()).sum())
-      let r2 = sqrt((update[keyPath: kp].squared()).sum())
-      let r = (r1 / r2).replacing(
-        with: Tensor<Double>(1),
-        where: (r1 .<= 0).elementsLogicalOr(r2 .<= 0))
-      update[keyPath: kp] = update[keyPath: kp] * r
-    }
-    var learningRate = self.learningRate(forStep: step)
-    if useBiasCorrection {
-      let step = Float(self.step)
-      learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
+      let r1 = sqrt((model[keyPath: modelKp].squared()).sum()).scalarized()
+      let r2 = sqrt((update[keyPath: kp].squared()).sum()).scalarized()
+      let r = r1 > 0 && r2 > 0 ? r1 / r2 : 1
+      learningRate *= Float(r)
     }
     model.move(along: update.scaled(by: -learningRate))
   }
