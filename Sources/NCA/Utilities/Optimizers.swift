@@ -360,7 +360,7 @@ public struct LAMB<
     let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
     let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    var update = (correctedFirstMoments ./ denominator) + weightDecay
+    var update = correctedFirstMoments ./ denominator + weightDecay
     for (kp, modelKp) in zip(
       update.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self)
@@ -369,7 +369,7 @@ public struct LAMB<
       let r2 = sqrt((update[keyPath: kp].squared()).sum())
       let r = (r1 / r2).replacing(
         with: Tensor<Float>(1),
-        where: (r1 .<= 0).elementsLogicalAnd(r2 .<= 0))
+        where: (r1 .<= 0).elementsLogicalOr(r2 .<= 0))
       update[keyPath: kp] = update[keyPath: kp] * r
     }
     for (kp, modelKp) in zip(
@@ -380,7 +380,7 @@ public struct LAMB<
       let r2 = sqrt((update[keyPath: kp].squared()).sum())
       let r = (r1 / r2).replacing(
         with: Tensor<Double>(1),
-        where: (r1 .<= 0).elementsLogicalAnd(r2 .<= 0))
+        where: (r1 .<= 0).elementsLogicalOr(r2 .<= 0))
       update[keyPath: kp] = update[keyPath: kp] * r
     }
     model.move(along: update.scaled(by: -learningRate))

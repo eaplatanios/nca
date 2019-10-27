@@ -101,7 +101,6 @@ public struct Labeling: Problem {
 public struct SimpleArchitecture: Architecture {
   @noDerivative public let contextEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
-  @noDerivative public var step: UInt64
 
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
@@ -128,12 +127,10 @@ public struct SimpleArchitecture: Architecture {
     albertConfiguration: ALBERT.Configuration,
     hiddenSize: Int,
     contextEmbeddingSize: Int,
-    reasoningHiddenSize: Int,
-    step: UInt64 = 0
+    reasoningHiddenSize: Int
   ) {
     self.hiddenSize = hiddenSize
     self.contextEmbeddingSize = contextEmbeddingSize
-    self.step = step
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(albertConfiguration.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
