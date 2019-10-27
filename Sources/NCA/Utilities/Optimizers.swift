@@ -91,17 +91,15 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    let step = Float(self.step)
-    var learningRate = self.learningRate(forStep: self.step)
-    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
-    let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
-    let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
-    let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
-    let update = correctedFirstMoments ./ denominator
+    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
+    let update = firstMoments ./ denominator
+    let step = Float(self.step)
+    var learningRate = self.learningRate(forStep: self.step)
+    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     model.move(along: update.scaled(by: -learningRate))
   }
 }
@@ -178,14 +176,14 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
+    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
+    let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
+    let update = firstMoments ./ denominator + weightDecay
     var learningRate = self.learningRate(forStep: step)
     if useBiasCorrection {
       let step = Float(self.step)
       learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     }
-    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
-    let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    let update = firstMoments ./ denominator + weightDecay
     model.move(along: update.scaled(by: -learningRate))
   }
 }
@@ -256,9 +254,6 @@ public struct AMSGrad<
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    let step = Float(self.step)
-    var learningRate = self.learningRate(forStep: self.step)
-    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
@@ -278,6 +273,9 @@ public struct AMSGrad<
 
     let denominator = Model.TangentVector.sqrt(secondMomentsMax).adding(epsilon)
     let update = firstMoments ./ denominator
+    let step = Float(self.step)
+    var learningRate = self.learningRate(forStep: self.step)
+    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     model.move(along: update.scaled(by: -learningRate))
   }
 }
@@ -298,6 +296,9 @@ public struct LAMB<
 
   /// The weight decay rate.
   public var weightDecayRate: Float
+
+  /// An indicator for whether or not to use bias correction.
+  public var useBiasCorrection: Bool
 
   /// A coefficient used to calculate the first and second moments of the gradients.
   public var beta1: Float
@@ -325,6 +326,7 @@ public struct LAMB<
     for model: __shared Model,
     learningRate: LearningRate,
     weightDecayRate: Float = 0.01,
+    useBiasCorrection: Bool = true,
     beta1: Float = 0.9,
     beta2: Float = 0.999,
     epsilon: Float = 1e-6,
@@ -335,6 +337,7 @@ public struct LAMB<
 
     self.learningRate = learningRate
     self.weightDecayRate = weightDecayRate
+    self.useBiasCorrection = useBiasCorrection
     self.beta1 = beta1
     self.beta2 = beta2
     self.epsilon = epsilon
@@ -347,9 +350,6 @@ public struct LAMB<
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
-    let step = Float(self.step)
-    var learningRate = self.learningRate(forStep: self.step)
-    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
@@ -378,6 +378,11 @@ public struct LAMB<
         with: Tensor<Double>(1),
         where: (r1 .<= 0).elementsLogicalOr(r2 .<= 0))
       update[keyPath: kp] = update[keyPath: kp] * r
+    }
+    var learningRate = self.learningRate(forStep: step)
+    if useBiasCorrection {
+      let step = Float(self.step)
+      learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     }
     model.move(along: update.scaled(by: -learningRate))
   }
