@@ -42,6 +42,27 @@ public struct TokenizedText {
   public let mask: [Bool]
 }
 
+/// Returns a 3-D attention mask that correspond to the 2-D mask of the provided text batch.
+///
+/// - Parameters:
+///   - text: Text batch for which to create an attention mask. `input.mask` has shape
+///     `[batchSize, sequenceLength]`.
+///
+/// - Returns: Attention mask with shape `[batchSize, sequenceLength, sequenceLength]`.
+public func createAttentionMask(forTextBatch text: TextBatch) -> Tensor<Float> {
+  let batchSize = text.tokenIds.shape[0]
+  let fromSequenceLength = text.tokenIds.shape[1]
+  let toSequenceLength = text.mask.shape[1]
+  let reshapedMask = Tensor<Float>(text.mask.reshaped(to: [batchSize, 1, toSequenceLength]))
+
+  // We do not assume that `input.tokenIds` is a mask. We do not actually care if we attend
+  // *from* padding tokens (only *to* padding tokens) so we create a tensor of all ones.
+  let broadcastOnes = Tensor<Float>(ones: [batchSize, fromSequenceLength, 1])
+
+  // We broadcast along two dimensions to create the mask.
+  return broadcastOnes * reshapedMask
+}
+
 /// Preprocesses an array of text sequences and prepares them for use by a text perception
 /// module. Preprocessing mainly consists of tokenization and padding.
 ///

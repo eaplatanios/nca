@@ -14,7 +14,6 @@
 
 import Foundation
 import TensorFlow
-import ZIPFoundation
 
 public struct SST: Task {
   public let directoryURL: URL
@@ -87,7 +86,7 @@ extension SST {
     // Extract the data, if necessary.
     let extractedDirectoryURL = compressedDataURL.deletingPathExtension()
     if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-      try FileManager.default.unzipItem(at: compressedDataURL, to: extractedDirectoryURL)
+      try extract(zipFileAt: compressedDataURL, to: extractedDirectoryURL)
     }
 
     // Load the data files into arrays of examples.

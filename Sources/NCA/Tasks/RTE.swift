@@ -14,7 +14,6 @@
 
 import Foundation
 import TensorFlow
-import ZIPFoundation
 
 // TODO: !!! This shares A LOT of code with CoLA and MRPC.
 
@@ -89,8 +88,7 @@ extension RTE {
     // Extract the data, if necessary.
     let extractedDirectoryURL = compressedDataURL.deletingPathExtension()
     if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-      // TODO: !!! Test if this is actually working correctly.
-      try FileManager.default.unzipItem(at: compressedDataURL, to: extractedDirectoryURL)
+      try extract(zipFileAt: compressedDataURL, to: extractedDirectoryURL)
     }
 
     // Load the data files into arrays of examples.

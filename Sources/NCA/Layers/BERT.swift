@@ -108,7 +108,7 @@ public struct BERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoint 
 
     // Create an attention mask for the inputs with shape
     // `[batchSize, sequenceLength, sequenceLength]`.
-    let attentionMask = createAttentionMask(forInput: input)
+    let attentionMask = createAttentionMask(forTextBatch: input)
 
     // Run the stacked transformer.
     return transformerEncoder(TransformerInput(
@@ -231,29 +231,6 @@ extension BERT {
   }
 }
 
-extension BERT {
-  /// Returns a 3-D attention mask that correspond to the 2-D mask of the provided input.
-  ///
-  /// - Parameters:
-  ///   - input: BERT input for which to create an attention mask. `input.mask` has shape
-  ///     `[batchSize, sequenceLength]`.
-  ///
-  /// - Returns: Attention mask with shape `[batchSize, sequenceLength, sequenceLength]`.
-  internal func createAttentionMask(forInput input: TextBatch) -> Tensor<Scalar> {
-    let batchSize = input.tokenIds.shape[0]
-    let fromSequenceLength = input.tokenIds.shape[1]
-    let toSequenceLength = input.mask.shape[1]
-    let reshapedMask = Tensor<Scalar>(input.mask.reshaped(to: [batchSize, 1, toSequenceLength]))
-
-    // We do not assume that `input.tokenIds` is a mask. We do not actually care if we attend
-    // *from* padding tokens (only *to* padding tokens) so we create a tensor of all ones.
-    let broadcastOnes = Tensor<Scalar>(ones: [batchSize, fromSequenceLength, 1])
-
-    // We broadcast along two dimensions to create the mask.
-    return broadcastOnes * reshapedMask
-  }
-}
-
 //===-----------------------------------------------------------------------------------------===//
 // Pre-Trained Models
 //===-----------------------------------------------------------------------------------------===//
@@ -301,7 +278,7 @@ extension BERT {
       // Extract the data, if necessary.
       let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
       if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-        try FileManager.default.unzipItem(at: compressedFileURL, to: directory)
+        try extract(zipFileAt: compressedFileURL, to: extractedDirectoryURL)
       }
     }
   }

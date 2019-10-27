@@ -14,7 +14,6 @@
 
 import Foundation
 import TensorFlow
-import ZIPFoundation
 
 public struct MRPC: Task {
   public let directoryURL: URL
