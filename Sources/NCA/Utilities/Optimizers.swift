@@ -91,12 +91,13 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
+    let step = Float(self.step)
+    var learningRate = self.learningRate(forStep: self.step)
+    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
-    let step = Float(self.step)
-    let learningRate = self.learningRate(forStep: self.step)
     let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
     let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
     let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
@@ -177,17 +178,14 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
-    var correctedFirstMoments = firstMoments
-    var correctedSecondMoments = secondMoments
+    var learningRate = self.learningRate(forStep: step)
     if useBiasCorrection {
       let step = Float(self.step)
-      correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
-      correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
+      learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     }
-    let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
+    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    let learningRate = self.learningRate(forStep: step)
-    let update = correctedFirstMoments ./ denominator + weightDecay
+    let update = firstMoments ./ denominator + weightDecay
     model.move(along: update.scaled(by: -learningRate))
   }
 }
@@ -258,6 +256,9 @@ public struct AMSGrad<
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
+    let step = Float(self.step)
+    var learningRate = self.learningRate(forStep: self.step)
+    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
@@ -275,12 +276,8 @@ public struct AMSGrad<
         secondMomentsMax[keyPath: kp], secondMoments[keyPath: kp])
     }
 
-    let step = Float(self.step)
-    let learningRate = self.learningRate(forStep: self.step)
-    let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
-    let correctedSecondMomentsMax = secondMomentsMax.scaled(by: 1 / pow(beta2, step))
-    let denominator = Model.TangentVector.sqrt(correctedSecondMomentsMax).adding(epsilon)
-    let update = correctedFirstMoments ./ denominator
+    let denominator = Model.TangentVector.sqrt(secondMomentsMax).adding(epsilon)
+    let update = firstMoments ./ denominator
     model.move(along: update.scaled(by: -learningRate))
   }
 }
@@ -350,17 +347,16 @@ public struct LAMB<
       direction.clipByGlobalNorm(clipNorm: globalNorm)
     }
     step += 1
+    let step = Float(self.step)
+    var learningRate = self.learningRate(forStep: self.step)
+    learningRate *= sqrt(1 - pow(beta2, step)) / (1 - pow(beta1, step))
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)
     secondMoments = secondMoments.scaled(by: beta2)
     secondMoments += direction .* direction.scaled(by: 1 - beta2)
-    let step = Float(self.step)
-    let learningRate = self.learningRate(forStep: self.step)
-    let correctedFirstMoments = firstMoments.scaled(by: 1 / pow(beta1, step))
-    let correctedSecondMoments = secondMoments.scaled(by: 1 / pow(beta2, step))
-    let denominator = Model.TangentVector.sqrt(correctedSecondMoments).adding(epsilon)
+    let denominator = Model.TangentVector.sqrt(secondMoments).adding(epsilon)
     let weightDecay = model.regularizationValue.scaled(by: weightDecayRate)
-    var update = correctedFirstMoments ./ denominator + weightDecay
+    var update = firstMoments ./ denominator + weightDecay
     for (kp, modelKp) in zip(
       update.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self)
