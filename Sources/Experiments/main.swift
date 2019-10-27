@@ -45,7 +45,7 @@ let vocabularyURL = albertDir
   .appendingPathComponent(albertPreTrainedModel.name)
   .appendingPathComponent("assets")
   .appendingPathComponent("30k-clean.model")
-let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
+let vocabulary = try! Vocabulary(fromSentencePieceModel: vocabularyURL)
 let albertConfiguration = albertPreTrainedModel.configuration
 let textTokenizer = FullTextTokenizer(
   caseSensitive: false,

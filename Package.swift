@@ -13,9 +13,10 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-package-manager.git", from: "0.4.0"),
     .package(url: "https://github.com/jkandzi/Progress.swift.git", from: "0.4.0"),
+    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.6.0")
   ],
   targets: [
-    .target(name: "NCA", dependencies: ["Logging", "Progress"]),
+    .target(name: "NCA", dependencies: ["Logging", "Progress", "SwiftProtobuf"]),
     .target(name: "Experiments", dependencies: ["NCA"]),
     .testTarget(name: "NCATests", dependencies: ["NCA"])
   ]

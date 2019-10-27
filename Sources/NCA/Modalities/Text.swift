@@ -186,6 +186,17 @@ extension Vocabulary: Serializable {
   }
 }
 
+extension Vocabulary {
+  public init(fromSentencePieceModel fileURL: URL) throws {
+    self.init(
+      tokensToIds: [String: Int](
+        (try Sentencepiece_ModelProto(serializedData: Data(contentsOf: fileURL)))
+          .pieces.map { $0.piece }
+          .enumerated().map { ($0.element, $0.offset) },
+        uniquingKeysWith: { (v1, v2) in max(v1, v2) }))
+  }
+}
+
 /// Text tokenizer which is used to split strings into arrays of tokens.
 public protocol TextTokenizer {
   func tokenize(_ text: String) -> [String]
