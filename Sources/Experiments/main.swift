@@ -78,27 +78,19 @@ var architecture = SimpleArchitecture(
   albertConfiguration: albertConfiguration,
   hiddenSize: 512,
   contextEmbeddingSize: 16,
-  reasoningHiddenSize: 512,
-  albertLearningRate: ExponentiallyDecayedParameter(
+  reasoningHiddenSize: 512)
+try! architecture.textPerception.load(preTrainedModel: albertPreTrainedModel, from: albertDir)
+
+var optimizer = LAMB(
+  for: architecture,
+  learningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(5e-5)),
+      baseParameter: FixedParameter(Float(2e-5)),
       warmUpStepCount: 100,
       warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
     startStep: 100),
-  learningRate: ExponentiallyDecayedParameter(
-    baseParameter: LinearlyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(5e-5)),
-      warmUpStepCount: 100,
-      warmUpOffset: 0),
-    decayRate: 0.99,
-    decayStepCount: 1,
-    startStep: 100))
-try! architecture.textPerception.load(preTrainedModel: albertPreTrainedModel, from: albertDir)
-
-var optimizer = LAMB(
-  for: architecture,
   weightDecayRate: 0.01,
   beta1: 0.9,
   beta2: 0.999,
@@ -125,13 +117,9 @@ for step in 1..<10000 {
       """
     logger.info("\(results)")
   }
-  let (mrpcLoss, mrpcGradient) = mrpc.loss(architecture: architecture)
-  architecture.update(along: optimizer.update(for: architecture, along: mrpcGradient))
-  let (colaLoss, colaGradient) = cola.loss(architecture: architecture)
-  architecture.update(along: optimizer.update(for: architecture, along: colaGradient))
-  let (rteLoss, rteGradient) = rte.loss(architecture: architecture)
-  architecture.update(along: optimizer.update(for: architecture, along: rteGradient))
-  let (sstLoss, sstGradient) = sst.loss(architecture: architecture)
-  architecture.update(along: optimizer.update(for: architecture, along: sstGradient))
+  let mrpcLoss = mrpc.update(architecture: &architecture, using: &optimizer)
+  let colaLoss = cola.update(architecture: &architecture, using: &optimizer)
+  let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
+  let sstLoss = sst.update(architecture: &architecture, using: &optimizer)
   logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss) | SST Loss = \(loss: sstLoss)")
 }

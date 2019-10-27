@@ -31,8 +31,6 @@ where TangentVector: KeyPathIterable {
 
   @differentiable
   func label(reasoningOutput: Tensor<Float>, problem: Labeling) -> Tensor<Float>
-
-  mutating func update(along direction: TangentVector)
 }
 
 extension Architecture {
@@ -100,14 +98,9 @@ public struct Labeling: Problem {
   }
 }
 
-public struct SimpleArchitecture<
-  BERTLearningRate: ScheduledParameter,
-  LearningRate: ScheduledParameter
->: Architecture where BERTLearningRate.Scalar == Float, LearningRate.Scalar == Float {
+public struct SimpleArchitecture: Architecture {
   @noDerivative public let contextEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
-  @noDerivative public let albertLearningRate: BERTLearningRate
-  @noDerivative public let learningRate: LearningRate
   @noDerivative public var step: UInt64
 
   public var contextEmbeddings: Tensor<Float>
@@ -136,14 +129,10 @@ public struct SimpleArchitecture<
     hiddenSize: Int,
     contextEmbeddingSize: Int,
     reasoningHiddenSize: Int,
-    albertLearningRate: BERTLearningRate,
-    learningRate: LearningRate,
     step: UInt64 = 0
   ) {
     self.hiddenSize = hiddenSize
     self.contextEmbeddingSize = contextEmbeddingSize
-    self.albertLearningRate = albertLearningRate
-    self.learningRate = learningRate
     self.step = step
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(albertConfiguration.initializerStandardDeviation))
@@ -253,19 +242,5 @@ public struct SimpleArchitecture<
     let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
     let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
     return logSigmoid(logits)
-  }
-
-  public mutating func update(along direction: TangentVector) {
-    step += 1
-    let albertLearningRate = self.albertLearningRate(forStep: step)
-    let learningRate = self.learningRate(forStep: step)
-    contextEmbeddings.move(along: direction.contextEmbeddings.scaled(by: learningRate))
-    conceptEmbeddings.move(along: direction.conceptEmbeddings.scaled(by: learningRate))
-    textPerception.move(along: direction.textPerception.scaled(by: albertLearningRate))
-    textPoolingQueryDense.move(along: direction.textPoolingQueryDense.scaled(by: learningRate))
-    textPoolingMultiHeadAttention.move(along: direction.textPoolingMultiHeadAttention.scaled(by: learningRate))
-    textPoolingOutputDense.move(along: direction.textPoolingOutputDense.scaled(by: learningRate))
-    reasoning.move(along: direction.reasoning.scaled(by: learningRate))
-    reasoningLayerNormalization.move(along: direction.reasoningLayerNormalization.scaled(by: learningRate))
   }
 }

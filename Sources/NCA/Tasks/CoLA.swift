@@ -38,7 +38,10 @@ public struct CoLA: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
-  public mutating func loss<A: Architecture>(architecture: A) -> (Float, A.TangentVector) {
+  public mutating func update<A: Architecture, O: Optimizer>(
+    architecture: inout A,
+    using optimizer: inout O
+  ) -> Float where O.Model == A {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
     let problem = self.problem
@@ -49,7 +52,8 @@ public struct CoLA: Task {
         labels: labels,
         reduction: { $0.mean() })
     }
-    return (loss.scalarized(), gradient)
+    optimizer.update(&architecture, along: gradient)
+    return loss.scalarized()
   }
 
   public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {

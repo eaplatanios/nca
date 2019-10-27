@@ -17,7 +17,11 @@ import TensorFlow
 public protocol Task {
   associatedtype EvaluationResult: Result
 
-  mutating func loss<A: Architecture>(architecture: A) -> (Float, A.TangentVector)
+  mutating func update<A: Architecture, O: Optimizer>(
+    architecture: inout A,
+    using optimizer: inout O
+  ) -> Float where O.Model == A
+
   func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult
 }
 
