@@ -107,7 +107,6 @@ public struct SimpleArchitecture: Architecture {
   public var textPerception: ALBERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
-  public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
 
@@ -118,7 +117,6 @@ public struct SimpleArchitecture: Architecture {
       textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
-      textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
       reasoning: reasoning.regularizationValue,
       reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue)
   }
@@ -151,18 +149,6 @@ public struct SimpleArchitecture: Architecture {
       valueActivation: { $0 },
       attentionDropoutProbability: albertConfiguration.attentionDropoutProbability,
       matrixResult: true)
-    let textPoolingOutputDenseBase = Affine<Float>(
-      inputSize: albertConfiguration.hiddenSize,
-      outputSize: hiddenSize,
-      weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation)))
-    self.textPoolingOutputDense = ContextualizedLayer(
-      base: textPoolingOutputDenseBase,
-      generator: Linear<Float>(
-        inputSize: contextEmbeddingSize,
-        outputSize: textPoolingOutputDenseBase.parameterCount,
-        weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
     let reasoningBase = Sequential(
       Affine<Float>(
         inputSize: hiddenSize,
@@ -207,10 +193,7 @@ public struct SimpleArchitecture: Architecture {
       source: query,
       target: perceivedText,
       mask: Tensor<Float>(text.mask.expandingShape(at: 1)))
-    let pooledPerceivedText = textPoolingMultiHeadAttention(attentionInput)
-    return textPoolingOutputDense(ContextualizedInput(
-      input: pooledPerceivedText,
-      context: context))
+    return textPoolingMultiHeadAttention(attentionInput)
   }
 
   @differentiable

@@ -18,12 +18,8 @@ import TensorFlow
 ///
 /// Dropout consists of randomly zeroing out a fraction of the input units during training time.
 /// This helps prevent overfitting.
-public struct Dropout<Scalar: TensorFlowFloatingPoint>: ParameterlessLayer, Regularizable {
+public struct Dropout<Scalar: TensorFlowFloatingPoint>: ParameterlessLayer {
   @noDerivative public let probability: Scalar
-
-  public var regularizationValue: TangentVector {
-    TangentVector()
-  }
 
   /// Creates a dropout layer.
   ///

@@ -76,7 +76,7 @@ var sst = try! SST(
 
 var architecture = SimpleArchitecture(
   albertConfiguration: albertConfiguration,
-  hiddenSize: 512,
+  hiddenSize: albertConfiguration.hiddenSize,
   contextEmbeddingSize: 16,
   reasoningHiddenSize: 512)
 try! architecture.textPerception.load(preTrainedModel: albertPreTrainedModel, from: albertDir)

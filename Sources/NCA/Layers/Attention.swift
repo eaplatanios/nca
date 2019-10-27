@@ -92,7 +92,7 @@ public struct MultiHeadAttention: Layer, Regularizable { // <Scalar: TensorFlowF
   public var keyBias: Tensor<Scalar>
   public var valueWeight: Tensor<Scalar>
   public var valueBias: Tensor<Scalar>
-  public var attentionDropout: Dropout<Scalar>
+  @noDerivative public var attentionDropout: Dropout<Scalar>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -101,8 +101,7 @@ public struct MultiHeadAttention: Layer, Regularizable { // <Scalar: TensorFlowF
       keyWeight: keyWeight,
       keyBias: Tensor(Scalar(0)),
       valueWeight: valueWeight,
-      valueBias: Tensor(Scalar(0)),
-      attentionDropout: attentionDropout.regularizationValue)
+      valueBias: Tensor(Scalar(0)))
   }
 
   /// Creates a multi-head attention layer.

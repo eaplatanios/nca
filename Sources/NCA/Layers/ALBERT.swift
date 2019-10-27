@@ -28,7 +28,7 @@ public struct ALBERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoin
   public var tokenTypeEmbedding: Embedding<Scalar>
   public var positionEmbedding: Embedding<Scalar>
   public var embeddingLayerNormalization: LayerNormalization<Scalar>
-  public var embeddingDropout: Dropout<Scalar>
+  @noDerivative public var embeddingDropout: Dropout<Scalar>
   public var embeddingProjection: Affine<Scalar>
   public var transformerEncoderLayers: [TransformerEncoderLayer]
 
@@ -38,7 +38,6 @@ public struct ALBERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoin
       tokenTypeEmbedding: tokenTypeEmbedding.regularizationValue,
       positionEmbedding: positionEmbedding.regularizationValue,
       embeddingLayerNormalization: embeddingLayerNormalization.regularizationValue,
-      embeddingDropout: embeddingDropout.regularizationValue,
       embeddingProjection: embeddingProjection.regularizationValue,
       transformerEncoderLayers: [TransformerEncoderLayer].TangentVector(
         transformerEncoderLayers.map { $0.regularizationValue }))

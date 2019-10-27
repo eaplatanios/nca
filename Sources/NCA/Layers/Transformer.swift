@@ -181,7 +181,7 @@ public struct TransformerEncoderLayer: Layer, Regularizable { // <Scalar: Tensor
   @noDerivative public let intermediateActivation: Activation<Scalar>
 
   public var multiHeadAttention: MultiHeadAttention
-  public var hiddenDropout: Dropout<Scalar>
+  @noDerivative public var hiddenDropout: Dropout<Scalar>
   public var attentionWeight: Tensor<Scalar>
   public var attentionBias: Tensor<Scalar>
   public var attentionLayerNormalization: LayerNormalization<Scalar>
@@ -194,7 +194,6 @@ public struct TransformerEncoderLayer: Layer, Regularizable { // <Scalar: Tensor
   public var regularizationValue: TangentVector {
     TangentVector(
       multiHeadAttention: multiHeadAttention.regularizationValue,
-      hiddenDropout: hiddenDropout.regularizationValue,
       attentionWeight: attentionWeight,
       attentionBias: Tensor(Scalar(0)),
       attentionLayerNormalization: attentionLayerNormalization.regularizationValue,

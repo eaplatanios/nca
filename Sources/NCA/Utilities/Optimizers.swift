@@ -369,7 +369,7 @@ public struct LAMB<
       let r1 = sqrt((model[keyPath: modelKp].squared()).sum()).scalarized()
       let r2 = sqrt((update[keyPath: kp].squared()).sum()).scalarized()
       let r = r1 > 0 && r2 > 0 ? r1 / r2 : 1
-      learningRate *= r
+      model[keyPath: modelKp].move(along: update[keyPath: kp].scaled(by: -learningRate * r))
     }
     for (kp, modelKp) in zip(
       update.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self),
@@ -378,8 +378,7 @@ public struct LAMB<
       let r1 = sqrt((model[keyPath: modelKp].squared()).sum()).scalarized()
       let r2 = sqrt((update[keyPath: kp].squared()).sum()).scalarized()
       let r = r1 > 0 && r2 > 0 ? r1 / r2 : 1
-      learningRate *= Float(r)
+      model[keyPath: modelKp].move(along: update[keyPath: kp].scaled(by: -learningRate * Float(r)))
     }
-    model.move(along: update.scaled(by: -learningRate))
   }
 }

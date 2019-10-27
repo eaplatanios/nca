@@ -28,7 +28,7 @@ public struct BERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoint 
   public var tokenTypeEmbedding: Embedding<Scalar>
   public var positionEmbedding: Embedding<Scalar>
   public var embeddingLayerNormalization: LayerNormalization<Scalar>
-  public var embeddingDropout: Dropout<Scalar>
+  @noDerivative public var embeddingDropout: Dropout<Scalar>
   public var transformerEncoder: TransformerEncoder // TODO: !!! <Scalar>
 
   public var regularizationValue: TangentVector {
@@ -37,7 +37,6 @@ public struct BERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoint 
       tokenTypeEmbedding: tokenTypeEmbedding.regularizationValue,
       positionEmbedding: positionEmbedding.regularizationValue,
       embeddingLayerNormalization: embeddingLayerNormalization.regularizationValue,
-      embeddingDropout: embeddingDropout.regularizationValue,
       transformerEncoder: transformerEncoder.regularizationValue)
   }
 
