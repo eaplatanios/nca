@@ -123,13 +123,28 @@ public struct ALBERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoin
     // We keep the representation as a 2-D tensor to avoid reshaping it back and forth from a 3-D
     // tensor to a 2-D tensor. Reshapes are normally free on GPUs/CPUs but may not be free on TPUs,
     // and so we want to minimize them to help the optimizer.
-    var transformerInput = embeddings.reshapedToMatrix()
-    let batchSize = embeddings.shape[0]
+    let transformerInput = embeddings.reshapedToMatrix()
+
+    // Run the stacked transformer with the grouped layers.
+    let transformerOutput = transformer(
+      transformerInput,
+      batchSize: embeddings.shape[0],
+      attentionMask: attentionMask)
+
+    // Reshape back to the original tensor shape.
+    return transformerOutput.reshapedFromMatrix(originalShape: embeddings.shape)
+  }
+
+  @differentiable(wrt: (self, input), vjp: _vjpTransformer(_:batchSize:attentionMask:))
+  internal func transformer(
+    _ input: Tensor<Scalar>,
+    batchSize: Int,
+    attentionMask: Tensor<Scalar>
+  ) -> Tensor<Scalar> {
     let hiddenGroupCount = configuration.hiddenGroupCount
     let hiddenLayerCount = configuration.hiddenLayerCount
     let groupsPerLayer = Float(hiddenGroupCount) / Float(hiddenLayerCount)
-
-    // Run the stacked transformer with the grouped layers.
+    var transformerInput = input
     for layerIndex in 0..<hiddenLayerCount {
       let groupIndex = Int(Float(layerIndex) * groupsPerLayer)
       transformerInput = transformerEncoderLayers[groupIndex](TransformerInput(
@@ -137,8 +152,50 @@ public struct ALBERT: Module, Regularizable { // <Scalar: TensorFlowFloatingPoin
         attentionMask: attentionMask,
         batchSize: batchSize))
     }
+    return transformerInput
+  }
 
-    return transformerInput.reshapedFromMatrix(originalShape: embeddings.shape)
+  @usableFromInline
+  internal func _vjpTransformer(
+    _ input: Tensor<Scalar>,
+    batchSize: Int,
+    attentionMask: Tensor<Scalar>
+  ) -> (Tensor<Scalar>, (Tensor<Scalar>) -> (TangentVector, Tensor<Scalar>)) {
+    let hiddenGroupCount = configuration.hiddenGroupCount
+    let hiddenLayerCount = configuration.hiddenLayerCount
+    let groupsPerLayer = Float(hiddenGroupCount) / Float(hiddenLayerCount)
+    var transformerInput = input
+    var backpropagators = [TransformerEncoderLayer.Backpropagator]()
+    for layerIndex in 0..<hiddenLayerCount {
+      let groupIndex = Int(Float(layerIndex) * groupsPerLayer)
+      let (output, backpropagator) = transformerEncoderLayers[groupIndex]
+        .appliedForBackpropagation(to: TransformerInput(
+          sequence: transformerInput,
+          attentionMask: attentionMask,
+          batchSize: batchSize))
+      transformerInput = output
+      backpropagators.append(backpropagator)
+    }
+    return (transformerInput, { outputGradient in
+      var outputGradient = outputGradient
+      var layersGradient = [TransformerEncoderLayer.TangentVector].TangentVector(Array(
+        repeating: TransformerEncoderLayer.TangentVector.zero,
+        count: hiddenGroupCount))
+      for (layerIndex, backpropagator) in backpropagators.enumerated().reversed() {
+        let groupIndex = Int(Float(layerIndex) * groupsPerLayer)
+        let (layerGradient, layerInputGradient) = backpropagator(outputGradient)
+        layersGradient[groupIndex] += layerGradient
+        outputGradient = layerInputGradient.sequence
+      }
+      return (TangentVector(
+        tokenEmbedding: Embedding<Scalar>.TangentVector.zero,
+        tokenTypeEmbedding: Embedding<Scalar>.TangentVector.zero,
+        positionEmbedding: Embedding<Scalar>.TangentVector.zero,
+        embeddingLayerNormalization: LayerNormalization<Scalar>.TangentVector.zero,
+        embeddingDropout: Dropout<Scalar>.TangentVector.zero,
+        embeddingProjection: Affine<Scalar>.TangentVector.zero,
+        transformerEncoderLayers: layersGradient), outputGradient)
+    })
   }
 }
 
