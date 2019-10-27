@@ -239,9 +239,9 @@ internal func extract(zipFileAt source: URL, to destination: URL) throws {
   logger.info("Extracting file at '\(source.path)'.")
   let process = Process()
   process.environment = ProcessInfo.processInfo.environment
-  process.launchPath = "/bin/bash"
+  process.executableURL = URL(fileURLWithPath: "/bin/bash")
   process.arguments = ["-c", "unzip -d \(destination.path) \(source.path)"]
-  process.launch()
+  try process.run()
   process.waitUntilExit()
 }
 
@@ -252,8 +252,8 @@ internal func extract(tarGZippedFileAt source: URL, to destination: URL) throws 
     withIntermediateDirectories: false)
   let process = Process()
   process.environment = ProcessInfo.processInfo.environment
-  process.launchPath = "/bin/bash"
+  process.executableURL = URL(fileURLWithPath: "/bin/bash")
   process.arguments = ["-c", "tar -C \(destination.path) -xzf \(source.path)"]
-  process.launch()
+  try process.run()
   process.waitUntilExit()
 }

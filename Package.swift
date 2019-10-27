@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
   name: "NCA",
+  platforms: [.macOS(.v10_13)],
   products: [
     .library(name: "NCA", targets: ["NCA"]),
     .executable(name: "Experiments", targets: ["Experiments"])
