@@ -33,70 +33,55 @@ extension String.StringInterpolation {
 let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let ncaDir = currentDir.appendingPathComponent("temp")
 let modulesDir = ncaDir.appendingPathComponent("modules")
-let bertDir = modulesDir
-  .appendingPathComponent("text")
-  .appendingPathComponent("bert")
 let tasksDir = ncaDir.appendingPathComponent("tasks")
 
-let bertPreTrainedModel = BERT.PreTrainedModel.base(cased: false, multilingual: false)
-try bertPreTrainedModel.maybeDownload(to: bertDir)
+let albertDir = modulesDir
+  .appendingPathComponent("text")
+  .appendingPathComponent("albert")
+let albertPreTrainedModel = ALBERT.PreTrainedModel.base
+try albertPreTrainedModel.maybeDownload(to: albertDir)
 
-let vocabularyURL = bertDir
-  .appendingPathComponent(bertPreTrainedModel.name)
-  .appendingPathComponent("vocab.txt")
-let bertConfigurationURL = bertDir
-  .appendingPathComponent(bertPreTrainedModel.name)
-  .appendingPathComponent("bert_config.json")
-
+let vocabularyURL = albertDir
+  .appendingPathComponent(albertPreTrainedModel.name)
+  .appendingPathComponent("assets")
+  .appendingPathComponent("30k-clean.model")
 let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
-let bertConfiguration = try! BERT.Configuration(fromFile: bertConfigurationURL)
-//let bertConfiguration = BERT.Configuration(
-//  vocabularySize: vocabulary.count,
-//  hiddenSize: 64,
-//  hiddenLayerCount: 1,
-//  attentionHeadCount: 4,
-//  intermediateSize: 4,
-//  intermediateActivation: .gelu,
-//  hiddenDropoutProbability: 0.1,
-//  attentionDropoutProbability: 0.1,
-//  maxSequenceLength: 50,
-//  typeVocabularySize: 2,
-//  initializerStandardDeviation: 0.02)
+let albertConfiguration = albertPreTrainedModel.configuration
 let textTokenizer = FullTextTokenizer(
   caseSensitive: false,
   vocabulary: vocabulary,
   unknownToken: "[UNK]",
-  maxTokenLength: bertConfiguration.maxSequenceLength)
+  maxTokenLength: albertConfiguration.maxSequenceLength)
 
 var mrpc = try! MRPC(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
   batchSize: 32)
 var cola = try! CoLA(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
   batchSize: 32)
 var rte = try! RTE(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
   batchSize: 32)
 var sst = try! SST(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
   batchSize: 32)
 
 var architecture = SimpleArchitecture(
-  bertConfiguration: bertConfiguration,
+  albertConfiguration: albertConfiguration,
   hiddenSize: 512,
   contextEmbeddingSize: 4,
   reasoningHiddenSize: 512,
-  bertLearningRate: ExponentiallyDecayedParameter(
+  albertLearningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(1e-4)),
+      baseParameter: FixedParameter(Float(5e-5)),
       warmUpStepCount: 100,
       warmUpOffset: 0),
     decayRate: 0.99,
@@ -104,13 +89,13 @@ var architecture = SimpleArchitecture(
     startStep: 100),
   learningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
-      baseParameter: FixedParameter(Float(1e-4)),
+      baseParameter: FixedParameter(Float(5e-5)),
       warmUpStepCount: 100,
       warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
     startStep: 100))
-try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
+try! architecture.textPerception.load(preTrainedModel: albertPreTrainedModel, from: albertDir)
 
 var optimizer = LAMB(
   for: architecture,
@@ -141,10 +126,12 @@ for step in 1..<10000 {
     logger.info("\(results)")
   }
   let (mrpcLoss, mrpcGradient) = mrpc.loss(architecture: architecture)
+  architecture.update(along: optimizer.update(for: architecture, along: mrpcGradient))
   let (colaLoss, colaGradient) = cola.loss(architecture: architecture)
+  architecture.update(along: optimizer.update(for: architecture, along: colaGradient))
   let (rteLoss, rteGradient) = rte.loss(architecture: architecture)
+  architecture.update(along: optimizer.update(for: architecture, along: rteGradient))
   let (sstLoss, sstGradient) = sst.loss(architecture: architecture)
-  let gradient = mrpcGradient + colaGradient + rteGradient + sstGradient
-  architecture.update(along: optimizer.update(for: architecture, along: gradient))
+  architecture.update(along: optimizer.update(for: architecture, along: sstGradient))
   logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss) | SST Loss = \(loss: sstLoss)")
 }

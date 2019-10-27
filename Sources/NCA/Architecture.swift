@@ -106,13 +106,13 @@ public struct SimpleArchitecture<
 >: Architecture where BERTLearningRate.Scalar == Float, LearningRate.Scalar == Float {
   @noDerivative public let contextEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
-  @noDerivative public let bertLearningRate: BERTLearningRate
+  @noDerivative public let albertLearningRate: BERTLearningRate
   @noDerivative public let learningRate: LearningRate
   @noDerivative public var step: UInt64
 
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
-  public var textPerception: BERT
+  public var textPerception: ALBERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
@@ -132,71 +132,71 @@ public struct SimpleArchitecture<
   }
 
   public init(
-    bertConfiguration: BERT.Configuration,
+    albertConfiguration: ALBERT.Configuration,
     hiddenSize: Int,
     contextEmbeddingSize: Int,
     reasoningHiddenSize: Int,
-    bertLearningRate: BERTLearningRate,
+    albertLearningRate: BERTLearningRate,
     learningRate: LearningRate,
     step: UInt64 = 0
   ) {
     self.hiddenSize = hiddenSize
     self.contextEmbeddingSize = contextEmbeddingSize
-    self.bertLearningRate = bertLearningRate
+    self.albertLearningRate = albertLearningRate
     self.learningRate = learningRate
     self.step = step
     let initializer = truncatedNormalInitializer(
-      standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
+      standardDeviation: Tensor<Float>(albertConfiguration.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
     self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
-    self.textPerception = BERT(configuration: bertConfiguration)
+    self.textPerception = ALBERT(configuration: albertConfiguration)
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
-      outputSize: bertConfiguration.hiddenSize,
+      outputSize: albertConfiguration.hiddenSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation)))
     self.textPoolingMultiHeadAttention = MultiHeadAttention(
-      sourceSize: bertConfiguration.hiddenSize,
-      targetSize: bertConfiguration.hiddenSize,
-      headCount: bertConfiguration.attentionHeadCount,
-      headSize: bertConfiguration.hiddenSize / bertConfiguration.attentionHeadCount,
+      sourceSize: albertConfiguration.hiddenSize,
+      targetSize: albertConfiguration.hiddenSize,
+      headCount: albertConfiguration.attentionHeadCount,
+      headSize: albertConfiguration.hiddenSize / albertConfiguration.attentionHeadCount,
       queryActivation: { $0 },
       keyActivation: { $0 },
       valueActivation: { $0 },
-      attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
+      attentionDropoutProbability: albertConfiguration.attentionDropoutProbability,
       matrixResult: true)
     let textPoolingOutputDenseBase = Affine<Float>(
-      inputSize: bertConfiguration.hiddenSize,
+      inputSize: albertConfiguration.hiddenSize,
       outputSize: hiddenSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation)))
     self.textPoolingOutputDense = ContextualizedLayer(
       base: textPoolingOutputDenseBase,
       generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: textPoolingOutputDenseBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
     let reasoningBase = Sequential(
       Affine<Float>(
         inputSize: hiddenSize,
         outputSize: reasoningHiddenSize,
-        activation: bertConfiguration.intermediateActivation.activationFunction(),
+        activation: albertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
+          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))),
       Affine<Float>(
         inputSize: reasoningHiddenSize,
         outputSize: hiddenSize,
-        activation: bertConfiguration.intermediateActivation.activationFunction(),
+        activation: albertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
       generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
@@ -257,11 +257,11 @@ public struct SimpleArchitecture<
 
   public mutating func update(along direction: TangentVector) {
     step += 1
-    let bertLearningRate = self.bertLearningRate(forStep: step)
+    let albertLearningRate = self.albertLearningRate(forStep: step)
     let learningRate = self.learningRate(forStep: step)
     contextEmbeddings.move(along: direction.contextEmbeddings.scaled(by: learningRate))
     conceptEmbeddings.move(along: direction.conceptEmbeddings.scaled(by: learningRate))
-    textPerception.move(along: direction.textPerception.scaled(by: bertLearningRate))
+    textPerception.move(along: direction.textPerception.scaled(by: albertLearningRate))
     textPoolingQueryDense.move(along: direction.textPoolingQueryDense.scaled(by: learningRate))
     textPoolingMultiHeadAttention.move(along: direction.textPoolingMultiHeadAttention.scaled(by: learningRate))
     textPoolingOutputDense.move(along: direction.textPoolingOutputDense.scaled(by: learningRate))
