@@ -17,18 +17,20 @@ import TensorFlow
 
 // TODO: !!! This shares A LOT of code with CoLA and MRPC.
 
-public struct QQP: Task {
+public struct MNLI: Task {
   public let directoryURL: URL
   public let trainExamples: [Example]
-  public let devExamples: [Example]
-  public let testExamples: [Example]
+  public let matchedDevExamples: [Example]
+  public let matchedTestExamples: [Example]
+  public let mismatchedDevExamples: [Example]
+  public let mismatchedTestExamples: [Example]
   public let textTokenizer: FullTextTokenizer
   public let maxSequenceLength: Int
   public let batchSize: Int
 
   public let problem: Classification = Classification(
-    context: .equivalence,
-    concepts: [.negative, .positive])
+    context: .entailment,
+    concepts: [.positive, .negative, .neutral])
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
@@ -37,8 +39,10 @@ public struct QQP: Task {
   private typealias TestDataIterator = DevDataIterator
 
   private var trainDataIterator: TrainDataIterator
-  private var devDataIterator: DevDataIterator
-  private var testDataIterator: TestDataIterator
+  private var matchedDevDataIterator: DevDataIterator
+  private var matchedTestDataIterator: TestDataIterator
+  private var mismatchedDevDataIterator: DevDataIterator
+  private var mismatchedTestDataIterator: TestDataIterator
 
   public mutating func update<A: Architecture, O: Optimizer>(
     architecture: inout A,
@@ -59,35 +63,50 @@ public struct QQP: Task {
   }
 
   public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
-    var devDataIterator = self.devDataIterator
-    var devPredictedLabels = [Bool]()
-    while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
+    var matchedDevDataIterator = self.matchedDevDataIterator
+    var matchedDevPredictedLabels = [Int32]()
+    while let batch = withDevice(.cpu, perform: { matchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
       let predictions = architecture.classify(input, problem: problem)
-      let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
-      devPredictedLabels.append(contentsOf: predictedLabels.scalars)
+      let predictedLabels = predictions.argmax(squeezingAxis: -1)
+      matchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
+    }
+    var mismatchedDevDataIterator = self.mismatchedDevDataIterator
+    var mismatchedDevPredictedLabels = [Int32]()
+    while let batch = withDevice(.cpu, perform: { mismatchedDevDataIterator.next() }) {
+      let input = ArchitectureInput(text: batch.inputs)
+      let predictions = architecture.classify(input, problem: problem)
+      let predictedLabels = predictions.argmax(squeezingAxis: -1)
+      mismatchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
     return evaluate(
-      examples: devExamples,
-      predictions: [String: Bool](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+      matchedExamples: matchedDevExamples,
+      matchedPredictions: [String: Int32](
+        uniqueKeysWithValues: zip(
+          matchedDevExamples.map { $0.id },
+          mismatchedDevPredictedLabels)),
+      mismatchedExamples: mismatchedDevExamples,
+      mismatchedPredictions: [String: Int32](
+        uniqueKeysWithValues: zip(
+          mismatchedDevExamples.map { $0.id },
+          mismatchedDevPredictedLabels)))
   }
 }
 
-extension QQP {
+extension MNLI {
   public init(
     taskDirectoryURL: URL,
     textTokenizer: FullTextTokenizer,
     maxSequenceLength: Int,
     batchSize: Int
   ) throws {
-    self.directoryURL = taskDirectoryURL.appendingPathComponent("QQP")
+    self.directoryURL = taskDirectoryURL.appendingPathComponent("MNLI")
 
     let dataURL = directoryURL.appendingPathComponent("data")
     let compressedDataURL = dataURL.appendingPathComponent("downloaded-data.zip")
 
     // Download the data, if necessary.
-    try maybeDownload(from: QQP.url, to: compressedDataURL)
+    try maybeDownload(from: MNLI.url, to: compressedDataURL)
 
     // Extract the data, if necessary.
     let extractedDirectoryURL = compressedDataURL.deletingPathExtension()
@@ -96,15 +115,21 @@ extension QQP {
     }
 
     // Load the data files into arrays of examples.
-    let dataFilesURL = extractedDirectoryURL.appendingPathComponent("QQP")
-    self.trainExamples = try QQP.load(
+    let dataFilesURL = extractedDirectoryURL.appendingPathComponent("MNLI")
+    self.trainExamples = try MNLI.load(
       fromFile: dataFilesURL.appendingPathComponent("train.tsv"),
       fileType: .train)
-    self.devExamples = try QQP.load(
-      fromFile: dataFilesURL.appendingPathComponent("dev.tsv"),
+    self.matchedDevExamples = try MNLI.load(
+      fromFile: dataFilesURL.appendingPathComponent("dev_matched.tsv"),
       fileType: .dev)
-    self.testExamples = try QQP.load(
-      fromFile: dataFilesURL.appendingPathComponent("test.tsv"),
+    self.matchedTestExamples = try MNLI.load(
+      fromFile: dataFilesURL.appendingPathComponent("test_matched.tsv"),
+      fileType: .test)
+    self.mismatchedDevExamples = try MNLI.load(
+      fromFile: dataFilesURL.appendingPathComponent("dev_mismatched.tsv"),
+      fileType: .dev)
+    self.mismatchedTestExamples = try MNLI.load(
+      fromFile: dataFilesURL.appendingPathComponent("test_mismatched.tsv"),
       fileType: .test)
 
     self.textTokenizer = textTokenizer
@@ -113,7 +138,7 @@ extension QQP {
 
     // Create a function that converts examples to data batches.
     let exampleMapFn = { example in
-      QQP.convertExampleToBatch(
+      MNLI.convertExampleToBatch(
         example,
         maxSequenceLength: maxSequenceLength,
         textTokenizer: textTokenizer)
@@ -125,10 +150,16 @@ extension QQP {
       .shuffled(bufferSize: 1000)
       .map(exampleMapFn)
       .batched(batchSize: batchSize)
-    self.devDataIterator = devExamples.makeIterator()
+    self.matchedDevDataIterator = matchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .batched(batchSize: batchSize)
-    self.testDataIterator = testExamples.makeIterator()
+    self.matchedTestDataIterator = matchedTestExamples.makeIterator()
+      .map(exampleMapFn)
+      .batched(batchSize: batchSize)
+    self.mismatchedDevDataIterator = mismatchedDevExamples.makeIterator()
+      .map(exampleMapFn)
+      .batched(batchSize: batchSize)
+    self.mismatchedTestDataIterator = mismatchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .batched(batchSize: batchSize)
   }
@@ -147,7 +178,7 @@ extension QQP {
     textTokenizer: FullTextTokenizer
   ) -> DataBatch {
     let tokenized = preprocessText(
-      sequences: [example.question1, example.question2],
+      sequences: [example.sentence1, example.sentence2],
       maxSequenceLength: maxSequenceLength,
       usingTokenizer: textTokenizer)
     return DataBatch(
@@ -155,7 +186,13 @@ extension QQP {
         tokenIds: Tensor(tokenized.tokenIds.map(Int32.init)),
         tokenTypeIds: Tensor(tokenized.tokenTypeIds.map(Int32.init)),
         mask: Tensor(tokenized.mask.map { $0 ? 1 : 0 })),
-      labels: example.equivalent.map { Tensor($0 ? 1 : 0) })
+      labels: example.entailment.map { entailment in Tensor<Int32>({ () -> Int32 in
+        switch entailment {
+        case .entailment: return 0
+        case .contradiction: return 1
+        case .neutral: return 2
+        }
+      }())})
   }
 }
 
@@ -163,23 +200,27 @@ extension QQP {
 // Data
 //===-----------------------------------------------------------------------------------------===//
 
-extension QQP {
-  /// QQP example.
+extension MNLI {
+  public enum Entailment: Int32 {
+    case entailment = 0, contradiction = 1, neutral = 2
+  }
+
+  /// MNLI example.
   public struct Example {
     public let id: String
-    public let question1: String
-    public let question2: String
-    public let equivalent: Bool?
+    public let sentence1: String
+    public let sentence2: String
+    public let entailment: Entailment?
 
-    public init(id: String, question1: String, question2: String, equivalent: Bool?) {
+    public init(id: String, sentence1: String, sentence2: String, entailment: Entailment?) {
       self.id = id
-      self.question1 = question1
-      self.question2 = question2
-      self.equivalent = equivalent
+      self.sentence1 = sentence1
+      self.sentence2 = sentence2
+      self.entailment = entailment
     }
   }
 
-  /// QQP data batch.
+  /// MNLI data batch.
   public struct DataBatch: KeyPathIterable {
     public var inputs: TextBatch      // TODO: !!! Mutable in order to allow for batching.
     public var labels: Tensor<Int32>? // TODO: !!! Mutable in order to allow for batching.
@@ -190,10 +231,10 @@ extension QQP {
     }
   }
 
-  /// URL pointing to the downloadable ZIP file that contains the QQP dataset.
+  /// URL pointing to the downloadable ZIP file that contains the MNLI dataset.
   private static let url: URL = URL(string: String(
     "https://firebasestorage.googleapis.com/v0/b/mtl-sentence-representations.appspot.com/" +
-      "o/data%2FQQP.zip?alt=media&token=700c6acf-160d-4d89-81d1-de4191d02cb5"))!
+      "o/data%2FMNLI.zip?alt=media&token=50329ea1-e339-40e2-809c-10c40afff3ce"))!
 
   internal enum FileType: String {
     case train = "train", dev = "dev", test = "test"
@@ -208,22 +249,21 @@ extension QQP {
         let lineParts = line.components(separatedBy: "\t")
         return Example(
           id: "\(fileType.rawValue)-\(i)",
-          question1: lineParts[1],
-          question2: lineParts[2],
-          equivalent: nil)
+          sentence1: lineParts[8],
+          sentence2: lineParts[9],
+          entailment: nil)
       }
     }
 
-    return lines.dropFirst().enumerated().compactMap { (i, line) in
+    return lines.dropFirst().enumerated().map { (i, line) in
       let lineParts = line.components(separatedBy: "\t")
-      if lineParts.count < 6 {
-        return nil
-      }
       return Example(
         id: "\(fileType.rawValue)-\(i)",
-        question1: lineParts[3],
-        question2: lineParts[4],
-        equivalent: lineParts[5] == "1")
+        sentence1: lineParts[8],
+        sentence2: lineParts[9],
+        entailment: lineParts[15] == "entailment" ?
+          .entailment :
+          lineParts[15] == "contradiction" ? .contradiction : .neutral)
     }
   }
 }
@@ -232,26 +272,37 @@ extension QQP {
 // Evaluation
 //===-----------------------------------------------------------------------------------------===//
 
-extension QQP {
+extension MNLI {
   public struct EvaluationResult: Result {
-    public let f1Score: Float
-    public let accuracy: Float
+    public let matchedAccuracy: Float
+    public let mismatchedAccuracy: Float
 
-    public init(f1Score: Float, accuracy: Float) {
-      self.f1Score = f1Score
-      self.accuracy = accuracy
+    public init(matchedAccuracy: Float, mismatchedAccuracy: Float) {
+      self.matchedAccuracy = matchedAccuracy
+      self.mismatchedAccuracy = mismatchedAccuracy
     }
 
     public var summary: String {
-      "Accuracy: \(accuracy), F1 Score: \(f1Score)"
+      "Matched Accuracy: \(matchedAccuracy), Mismatched Accuracy: \(mismatchedAccuracy)"
     }
   }
 
-  public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.equivalent! }
+  public func evaluate(
+    matchedExamples: [Example],
+    matchedPredictions: [String: Int32],
+    mismatchedExamples: [Example],
+    mismatchedPredictions: [String: Int32]
+  ) -> EvaluationResult {
+    let matchedPredictions = matchedExamples.map { matchedPredictions[$0.id]! }
+    let matchedGroundTruth = matchedExamples.map { $0.entailment!.rawValue }
+    let mismatchedPredictions = mismatchedExamples.map { mismatchedPredictions[$0.id]! }
+    let mismatchedGroundTruth = mismatchedExamples.map { $0.entailment!.rawValue }
     return EvaluationResult(
-      f1Score: NCA.f1Score(predictions: predictions, groundTruth: groundTruth),
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
+      matchedAccuracy: NCA.accuracy(
+        predictions: matchedPredictions,
+        groundTruth: matchedGroundTruth),
+      mismatchedAccuracy: NCA.accuracy(
+        predictions: mismatchedPredictions,
+        groundTruth: mismatchedGroundTruth))
   }
 }
