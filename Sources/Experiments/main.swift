@@ -26,7 +26,7 @@ extension String.StringInterpolation {
   }
 
   mutating func appendInterpolation(task value: String) {
-    appendLiteral(String(format: "%5s", value))
+    appendLiteral(value.padding(toLength: 5, withPad: " ", startingAt: 0))
   }
 
   mutating func appendInterpolation(loss value: Float) {

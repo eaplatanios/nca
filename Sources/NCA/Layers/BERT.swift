@@ -277,7 +277,7 @@ extension BERT {
       // Extract the data, if necessary.
       let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
       if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-        try extract(zipFileAt: compressedFileURL, to: extractedDirectoryURL)
+        try extract(zipFileAt: compressedFileURL, to: directory)
       }
     }
   }
