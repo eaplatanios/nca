@@ -49,17 +49,17 @@ let vocabularyURL = bertDir
 let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
 let bertConfiguration = try! BERT.Configuration(fromFile: bertConfigurationURL)
 
-//let albertDir = modulesDir
-//  .appendingPathComponent("text")
-//  .appendingPathComponent("albert")
-//let albertPreTrainedModel = ALBERT.PreTrainedModel.base
-//try albertPreTrainedModel.maybeDownload(to: albertDir)
-//let vocabularyURL = albertDir
-//  .appendingPathComponent(albertPreTrainedModel.name)
-//  .appendingPathComponent("assets")
-//  .appendingPathComponent("30k-clean.model")
-//let vocabulary = try! Vocabulary(fromSentencePieceModel: vocabularyURL)
-//let albertConfiguration = albertPreTrainedModel.configuration
+// let albertDir = modulesDir
+//   .appendingPathComponent("text")
+//   .appendingPathComponent("albert")
+// let albertPreTrainedModel = ALBERT.PreTrainedModel.base
+// try albertPreTrainedModel.maybeDownload(to: albertDir)
+// let vocabularyURL = albertDir
+//   .appendingPathComponent(albertPreTrainedModel.name)
+//   .appendingPathComponent("assets")
+//   .appendingPathComponent("30k-clean.model")
+// let vocabulary = try! Vocabulary(fromSentencePieceModel: vocabularyURL)
+// let albertConfiguration = albertPreTrainedModel.configuration
 
 let textTokenizer = FullTextTokenizer(
   caseSensitive: false,
@@ -87,6 +87,11 @@ var sst = try! SST(
   textTokenizer: textTokenizer,
   maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
+var qnli = try! QNLI(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  batchSize: 32)
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
@@ -100,11 +105,11 @@ var optimizer = WeightDecayedAdam(
   learningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
       baseParameter: FixedParameter(Float(2e-5)),
-      warmUpStepCount: 500,
+      warmUpStepCount: 1000,
       warmUpOffset: 0),
-    decayRate: 0.99,
+    decayRate: 0.995,
     decayStepCount: 1,
-    startStep: 500),
+    startStep: 1000),
   weightDecayRate: 0.01,
   useBiasCorrection: false,
   beta1: 0.9,
@@ -119,6 +124,7 @@ for step in 1..<10000 {
     let colaResults = cola.evaluate(using: architecture).summary
     let rteResults = rte.evaluate(using: architecture).summary
     let sstResults = sst.evaluate(using: architecture).summary
+    let qnliResults = qnli.evaluate(using: architecture).summary
     let results =
       """
       ================
@@ -128,6 +134,7 @@ for step in 1..<10000 {
       CoLA Evaluation: \(colaResults)
       RTE Evaluation: \(rteResults)
       SST Evaluation: \(sstResults)
+      QNLI Evaluation: \(qnliResults)
       ================
       """
     logger.info("\(results)")
@@ -136,5 +143,12 @@ for step in 1..<10000 {
   let colaLoss = cola.update(architecture: &architecture, using: &optimizer)
   let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
   let sstLoss = sst.update(architecture: &architecture, using: &optimizer)
-  logger.info("Step \(step: step) | MRPC Loss = \(loss: mrpcLoss) | CoLA Loss = \(loss: colaLoss) | RTE Loss = \(loss: rteLoss) | SST Loss = \(loss: sstLoss)")
+  let qnliLoss = qnli.update(architecture: &architecture, using: &optimizer)
+  let message = "Step \(step: step) | " +
+    "MRPC Loss = \(loss: mrpcLoss) | " +
+    "CoLA Loss = \(loss: colaLoss) | " +
+    "RTE Loss = \(loss: rteLoss) | " +
+    "SST Loss = \(loss: sstLoss) | " +
+    "QNLI Loss = \(loss: qnliLoss)"
+  logger.info("\(message)")
 }
