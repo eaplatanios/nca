@@ -39,6 +39,15 @@ extension IteratorProtocol {
   public func shuffled(bufferSize: Int) -> ShuffleIterator<Self> {
     ShuffleIterator(self, bufferSize: bufferSize)
   }
+
+  // TODO: [DOC] Add documentation string.
+  public func grouped(
+    keyFn: @escaping (Element) -> Int,
+    sizeFn: @escaping (Int) -> Int,
+    reduceFn: @escaping ([Element]) -> Element
+  ) -> GroupedIterator<Self> {
+    GroupedIterator(self, keyFn: keyFn, sizeFn: sizeFn, reduceFn: reduceFn)
+  }
 }
 
 extension IteratorProtocol where Element: KeyPathIterable {
@@ -145,6 +154,49 @@ where Base.Element: KeyPathIterable {
     buffer = []
     buffer.reserveCapacity(batchSize)
     return batch
+  }
+}
+
+/// Iterator that grouped elements from another iterator.
+public struct GroupedIterator<Base: IteratorProtocol>: IteratorProtocol {
+  private let keyFn: (Base.Element) -> Int
+  private let sizeFn: (Int) -> Int
+  private let reduceFn: ([Base.Element]) -> Base.Element
+  private var iterator: Base
+  private var groups: [Int: [Base.Element]]
+
+  public init(
+    _ iterator: Base,
+    keyFn: @escaping (Base.Element) -> Int,
+    sizeFn: @escaping (Int) -> Int,
+    reduceFn: @escaping ([Base.Element]) -> Base.Element
+  ) {
+    self.keyFn = keyFn
+    self.sizeFn = sizeFn
+    self.reduceFn = reduceFn
+    self.iterator = iterator
+    self.groups = [Int: [Base.Element]]()
+  }
+
+  public mutating func next() -> Base.Element? {
+    var elements: [Base.Element]? = nil
+    while elements == nil {
+      if let element = iterator.next() {
+        let key = keyFn(element)
+        if !groups.keys.contains(key) {
+          groups[key] = [element]
+        } else {
+          groups[key]!.append(element)
+        }
+        if groups[key]!.count >= sizeFn(key) {
+          elements = groups.removeValue(forKey: key)!
+        }
+      } else {
+        break
+      }
+    }
+    guard let elementsToReduce = elements else { return nil }
+    return reduceFn(elementsToReduce)
   }
 }
 

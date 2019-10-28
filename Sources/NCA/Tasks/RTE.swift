@@ -32,8 +32,8 @@ public struct RTE: Task {
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
-  private typealias TrainDataIterator = BatchIterator<MapIterator<RepeatExampleIterator, DataBatch>>
-  private typealias DevDataIterator = BatchIterator<MapIterator<ExampleIterator, DataBatch>>
+  private typealias TrainDataIterator = GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>
+  private typealias DevDataIterator = GroupedIterator<MapIterator<ExampleIterator, DataBatch>>
   private typealias TestDataIterator = DevDataIterator
 
   private var trainDataIterator: TrainDataIterator
@@ -124,13 +124,22 @@ extension RTE {
       .repeated()
       .shuffled(bufferSize: 1000)
       .map(exampleMapFn)
-      .batched(batchSize: batchSize)
+      .grouped(
+        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        sizeFn: { _ in batchSize },
+        reduceFn: DataBatch.batch)
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
-      .batched(batchSize: batchSize)
+      .grouped(
+        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        sizeFn: { _ in batchSize },
+        reduceFn: DataBatch.batch)
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
-      .batched(batchSize: batchSize)
+      .grouped(
+        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        sizeFn: { _ in batchSize },
+        reduceFn: DataBatch.batch)
   }
 
   /// Converts an example to a data batch.
