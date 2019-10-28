@@ -261,9 +261,9 @@ extension MNLI {
         id: "\(fileType.rawValue)-\(i)",
         sentence1: lineParts[8],
         sentence2: lineParts[9],
-        entailment: lineParts[15] == "entailment" ?
+        entailment: lineParts.last! == "entailment" ?
           .entailment :
-          lineParts[15] == "contradiction" ? .contradiction : .neutral)
+          lineParts.last! == "contradiction" ? .contradiction : .neutral)
     }
   }
 }
