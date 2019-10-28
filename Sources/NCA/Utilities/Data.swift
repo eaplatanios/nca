@@ -309,3 +309,12 @@ internal func extract(tarGZippedFileAt source: URL, to destination: URL) throws 
   try process.run()
   process.waitUntilExit()
 }
+
+internal func parse(tsvFileAt fileURL: URL) throws -> [[String]] {
+  try Data(contentsOf: fileURL).withUnsafeBytes {
+    $0.split(separator: UInt8(ascii: "\n")).map {
+      $0.split(separator: UInt8(ascii: "\t"), omittingEmptySubsequences: false)
+        .map { String(decoding: UnsafeRawBufferPointer(rebasing: $0), as: UTF8.self) }
+    }
+  }
+}

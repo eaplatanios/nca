@@ -138,7 +138,7 @@ var optimizer = WeightDecayedAdam(
       baseParameter: FixedParameter(Float(2e-5)),
       warmUpStepCount: 1000,
       warmUpOffset: 0),
-    decayRate: 0.995,
+    decayRate: 0.99,
     decayStepCount: 1,
     startStep: 1000),
   weightDecayRate: 0.01,

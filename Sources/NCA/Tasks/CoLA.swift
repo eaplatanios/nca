@@ -205,25 +205,17 @@ extension CoLA {
   }
 
   internal static func load(fromFile fileURL: URL, fileType: FileType) throws -> [Example] {
-    let lines = try String(contentsOf: fileURL, encoding: .utf8).split { $0.isNewline }
+    let lines = try parse(tsvFileAt: fileURL)
 
     if fileType == .test {
       // The test data file has a header.
-      return lines.dropFirst().enumerated().map { (i, line) in
-        let lineParts = line.components(separatedBy: "\t")
-        return Example(
-          id: lineParts[0],
-          sentence: lineParts[1],
-          isAcceptable: nil)
+      return lines.dropFirst().enumerated().map { (i, lineParts) in
+        Example(id: lineParts[0], sentence: lineParts[1], isAcceptable: nil)
       }
     }
 
-    return lines.enumerated().map { (i, line) in
-      let lineParts = line.components(separatedBy: "\t")
-      return Example(
-        id: lineParts[0],
-        sentence: lineParts[3],
-        isAcceptable: lineParts[1] == "1")
+    return lines.enumerated().map { (i, lineParts) in
+      Example(id: lineParts[0], sentence: lineParts[3], isAcceptable: lineParts[1] == "1")
     }
   }
 }
