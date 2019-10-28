@@ -58,7 +58,7 @@ public struct SNLI: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Int32]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -67,10 +67,9 @@ public struct SNLI: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Int32](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return ["accuracy": NCA.accuracy(
+      predictions: devPredictedLabels,
+      groundTruth: devExamples.map { $0.entailment!.rawValue })]
   }
 }
 
@@ -234,30 +233,5 @@ extension SNLI {
           .entailment :
           lineParts.last! == "contradiction" ? .contradiction : .neutral)
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension SNLI {
-  public struct EvaluationResult: Result {
-    public let accuracy: Float
-
-    public init(accuracy: Float) {
-      self.accuracy = accuracy
-    }
-
-    public var summary: String {
-      "Accuracy: \(accuracy)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Int32]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.entailment!.rawValue }
-    return EvaluationResult(
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
   }
 }

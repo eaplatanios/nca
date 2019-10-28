@@ -56,7 +56,7 @@ public struct MRPC: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -65,10 +65,13 @@ public struct MRPC: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Bool](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return [
+      "f1Score": NCA.f1Score(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.isParaphrase! }),
+      "accuracy": NCA.accuracy(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.isParaphrase! })]
   }
 }
 
@@ -227,32 +230,4 @@ extension MRPC {
   private static let devIdsURL: URL = URL(string: String(
     "https://firebasestorage.googleapis.com/v0/b/mtl-sentence-representations.appspot.com/" +
       "o/data%2Fmrpc_dev_ids.tsv?alt=media&token=ec5c0836-31d5-48f4-b431-7480817f1adc"))!
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension MRPC {
-  public struct EvaluationResult: Result {
-    public let f1Score: Float
-    public let accuracy: Float
-
-    public init(f1Score: Float, accuracy: Float) {
-      self.f1Score = f1Score
-      self.accuracy = accuracy
-    }
-
-    public var summary: String {
-      "Accuracy: \(accuracy), F1 Score: \(f1Score)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.isParaphrase! }
-    return EvaluationResult(
-      f1Score: NCA.f1Score(predictions: predictions, groundTruth: groundTruth),
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
-  }
 }

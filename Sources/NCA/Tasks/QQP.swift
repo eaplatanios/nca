@@ -58,7 +58,7 @@ public struct QQP: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -67,10 +67,13 @@ public struct QQP: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Bool](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return [
+      "f1Score": NCA.f1Score(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.equivalent! }),
+      "accuracy": NCA.accuracy(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.equivalent! })]
   }
 }
 
@@ -225,33 +228,5 @@ extension QQP {
         question2: lineParts[4],
         equivalent: lineParts[5] == "1")
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension QQP {
-  public struct EvaluationResult: Result {
-    public let f1Score: Float
-    public let accuracy: Float
-
-    public init(f1Score: Float, accuracy: Float) {
-      self.f1Score = f1Score
-      self.accuracy = accuracy
-    }
-
-    public var summary: String {
-      "Accuracy: \(accuracy), F1 Score: \(f1Score)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.equivalent! }
-    return EvaluationResult(
-      f1Score: NCA.f1Score(predictions: predictions, groundTruth: groundTruth),
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
   }
 }

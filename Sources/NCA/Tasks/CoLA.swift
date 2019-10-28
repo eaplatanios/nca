@@ -56,7 +56,7 @@ public struct CoLA: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -65,10 +65,10 @@ public struct CoLA: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Bool](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return [
+      "matthewsCorrelationCoefficient": NCA.matthewsCorrelationCoefficient(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.isAcceptable! })]
   }
 }
 
@@ -216,35 +216,5 @@ extension CoLA {
         sentence: lineParts[3],
         isAcceptable: lineParts[1] == "1")
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension CoLA {
-  public struct EvaluationResult: Result {
-    public let matthewsCorrelationCoefficient: Float
-    public let accuracy: Float
-
-    public init(matthewsCorrelationCoefficient: Float, accuracy: Float) {
-      self.matthewsCorrelationCoefficient = matthewsCorrelationCoefficient
-      self.accuracy = accuracy
-    }
-
-    public var summary: String {
-      "Accuracy: \(accuracy), Matthew's Correlation Coefficient: \(matthewsCorrelationCoefficient)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.isAcceptable! }
-    return EvaluationResult(
-      matthewsCorrelationCoefficient: NCA.matthewsCorrelationCoefficient(
-        predictions: predictions,
-        groundTruth: groundTruth),
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
   }
 }

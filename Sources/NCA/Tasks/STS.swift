@@ -56,7 +56,7 @@ public struct STS: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Float]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -65,10 +65,13 @@ public struct STS: Task {
       let predictedLabels = softmax(predictions)[0..., 1] * 5
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Float](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return [
+      "pearsonCorrelationCoefficient": NCA.pearsonCorrelationCoefficient(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.equivalence! }),
+      "spearmanCorrelationCoefficient": NCA.spearmanCorrelationCoefficient(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.equivalence! })]
   }
 }
 
@@ -220,38 +223,5 @@ extension STS {
         sentence2: lineParts[8],
         equivalence: Float(lineParts[9])!)
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension STS {
-  public struct EvaluationResult: Result {
-    public let pearsonCorrelationCoefficient: Float
-    public let spearmanCorrelationCoefficient: Float
-
-    public init(pearsonCorrelationCoefficient: Float, spearmanCorrelationCoefficient: Float) {
-      self.pearsonCorrelationCoefficient = pearsonCorrelationCoefficient
-      self.spearmanCorrelationCoefficient = spearmanCorrelationCoefficient
-    }
-
-    public var summary: String {
-      "Pearson Correlation Coefficient: \(pearsonCorrelationCoefficient), " +
-        "Spearman Correlation Coefficient: \(spearmanCorrelationCoefficient)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Float]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.equivalence! }
-    return EvaluationResult(
-      pearsonCorrelationCoefficient: NCA.pearsonCorrelationCoefficient(
-        predictions: predictions,
-        groundTruth: groundTruth),
-      spearmanCorrelationCoefficient: NCA.spearmanCorrelationCoefficient(
-        predictions: predictions,
-        groundTruth: groundTruth))
   }
 }

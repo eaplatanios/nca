@@ -56,7 +56,7 @@ public struct SST: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -65,10 +65,10 @@ public struct SST: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Bool](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return [
+      "accuracy": NCA.accuracy(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.positive! })]
   }
 }
 
@@ -216,30 +216,5 @@ extension SST {
         sentence: lineParts[0],
         positive: lineParts[1] == "1")
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension SST {
-  public struct EvaluationResult: Result {
-    public let accuracy: Float
-
-    public init(accuracy: Float) {
-      self.accuracy = accuracy
-    }
-
-    public var summary: String {
-      "Accuracy: \(accuracy)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.positive! }
-    return EvaluationResult(
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
   }
 }

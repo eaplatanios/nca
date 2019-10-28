@@ -62,7 +62,7 @@ public struct MNLI: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var matchedDevDataIterator = self.matchedDevDataIterator
     var matchedDevPredictedLabels = [Int32]()
     while let batch = withDevice(.cpu, perform: { matchedDevDataIterator.next() }) {
@@ -79,17 +79,13 @@ public struct MNLI: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       mismatchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      matchedExamples: matchedDevExamples,
-      matchedPredictions: [String: Int32](
-        uniqueKeysWithValues: zip(
-          matchedDevExamples.map { $0.id },
-          mismatchedDevPredictedLabels)),
-      mismatchedExamples: mismatchedDevExamples,
-      mismatchedPredictions: [String: Int32](
-        uniqueKeysWithValues: zip(
-          mismatchedDevExamples.map { $0.id },
-          mismatchedDevPredictedLabels)))
+    return [
+      "matchedAccuracy": NCA.accuracy(
+        predictions: matchedDevPredictedLabels,
+        groundTruth: matchedDevExamples.map { $0.entailment!.rawValue }),
+      "mismatchedAccuracy": NCA.accuracy(
+        predictions: mismatchedDevPredictedLabels,
+        groundTruth: mismatchedDevExamples.map { $0.entailment!.rawValue })]
   }
 }
 
@@ -265,44 +261,5 @@ extension MNLI {
           .entailment :
           lineParts.last! == "contradiction" ? .contradiction : .neutral)
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension MNLI {
-  public struct EvaluationResult: Result {
-    public let matchedAccuracy: Float
-    public let mismatchedAccuracy: Float
-
-    public init(matchedAccuracy: Float, mismatchedAccuracy: Float) {
-      self.matchedAccuracy = matchedAccuracy
-      self.mismatchedAccuracy = mismatchedAccuracy
-    }
-
-    public var summary: String {
-      "Matched Accuracy: \(matchedAccuracy), Mismatched Accuracy: \(mismatchedAccuracy)"
-    }
-  }
-
-  public func evaluate(
-    matchedExamples: [Example],
-    matchedPredictions: [String: Int32],
-    mismatchedExamples: [Example],
-    mismatchedPredictions: [String: Int32]
-  ) -> EvaluationResult {
-    let matchedPredictions = matchedExamples.map { matchedPredictions[$0.id]! }
-    let matchedGroundTruth = matchedExamples.map { $0.entailment!.rawValue }
-    let mismatchedPredictions = mismatchedExamples.map { mismatchedPredictions[$0.id]! }
-    let mismatchedGroundTruth = mismatchedExamples.map { $0.entailment!.rawValue }
-    return EvaluationResult(
-      matchedAccuracy: NCA.accuracy(
-        predictions: matchedPredictions,
-        groundTruth: matchedGroundTruth),
-      mismatchedAccuracy: NCA.accuracy(
-        predictions: mismatchedPredictions,
-        groundTruth: mismatchedGroundTruth))
   }
 }

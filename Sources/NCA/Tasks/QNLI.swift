@@ -58,7 +58,7 @@ public struct QNLI: Task {
     return loss.scalarized()
   }
 
-  public func evaluate<A: Architecture>(using architecture: A) -> EvaluationResult {
+  public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator
     var devPredictedLabels = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
@@ -67,10 +67,10 @@ public struct QNLI: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    return evaluate(
-      examples: devExamples,
-      predictions: [String: Bool](
-        uniqueKeysWithValues: zip(devExamples.map { $0.id }, devPredictedLabels)))
+    return [
+      "accuracy": NCA.accuracy(
+        predictions: devPredictedLabels,
+        groundTruth: devExamples.map { $0.entailment! })]
   }
 }
 
@@ -222,30 +222,5 @@ extension QNLI {
         sentence2: lineParts[2],
         entailment: lineParts[3] == "entailment")
     }
-  }
-}
-
-//===-----------------------------------------------------------------------------------------===//
-// Evaluation
-//===-----------------------------------------------------------------------------------------===//
-
-extension QNLI {
-  public struct EvaluationResult: Result {
-    public let accuracy: Float
-
-    public init(accuracy: Float) {
-      self.accuracy = accuracy
-    }
-
-    public var summary: String {
-      "Accuracy: \(accuracy)"
-    }
-  }
-
-  public func evaluate(examples: [Example], predictions: [String: Bool]) -> EvaluationResult {
-    let predictions = examples.map { predictions[$0.id]! }
-    let groundTruth = examples.map { $0.entailment! }
-    return EvaluationResult(
-      accuracy: NCA.accuracy(predictions: predictions, groundTruth: groundTruth))
   }
 }

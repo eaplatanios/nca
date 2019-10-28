@@ -25,6 +25,10 @@ extension String.StringInterpolation {
     appendLiteral(String(format: "%5d", value))
   }
 
+  mutating func appendInterpolation(task value: String) {
+    appendLiteral(String(format: "%5s", value))
+  }
+
   mutating func appendInterpolation(loss value: Float) {
     appendLiteral(String(format: "%.4f", value))
   }
@@ -68,56 +72,57 @@ let textTokenizer = FullTextTokenizer(
   maxTokenLength: bertConfiguration.maxSequenceLength)
 
 let maxSequenceLength = 128 // bertConfiguration.maxSequenceLength
-var mrpc = try! MRPC(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var cola = try! CoLA(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var rte = try! RTE(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var sst = try! SST(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var sts = try! STS(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var qnli = try! QNLI(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var wnli = try! WNLI(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var snli = try! SNLI(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var mnli = try! MNLI(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
-var qqp = try! QQP(
-  taskDirectoryURL: tasksDir,
-  textTokenizer: textTokenizer,
-  maxSequenceLength: maxSequenceLength,
-  batchSize: 32)
+var tasks: [(String, Task)] = [
+  ("MRPC", try! MRPC(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("CoLA", try! CoLA(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("RTE", try! RTE(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("SST", try! SST(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("STS", try! STS(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("QNLI", try! QNLI(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("WNLI", try! WNLI(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("SNLI", try! SNLI(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("MNLI", try! MNLI(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32)),
+  ("QQP", try! QQP(
+    taskDirectoryURL: tasksDir,
+    textTokenizer: textTokenizer,
+    maxSequenceLength: maxSequenceLength,
+    batchSize: 32))]
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
@@ -146,55 +151,24 @@ var optimizer = WeightDecayedAdam(
 logger.info("Training is starting...")
 for step in 1..<10000 {
   if step % 50 == 0 {
-    let mrpcResults = mrpc.evaluate(using: architecture).summary
-    let colaResults = cola.evaluate(using: architecture).summary
-    let rteResults = rte.evaluate(using: architecture).summary
-    let sstResults = sst.evaluate(using: architecture).summary
-    let stsResults = sts.evaluate(using: architecture).summary
-    let qnliResults = qnli.evaluate(using: architecture).summary
-    let wnliResults = wnli.evaluate(using: architecture).summary
-    let snliResults = snli.evaluate(using: architecture).summary
-    let mnliResults = mnli.evaluate(using: architecture).summary
-    let qqpResults = qqp.evaluate(using: architecture).summary
-    let results =
-      """
-      ================
-      Step \(step) Evaluation
-      ================
-      MRPC | \(mrpcResults)
-      CoLA | \(colaResults)
-       RTE | \(rteResults)
-       SST | \(sstResults)
-       STS | \(stsResults)
-      QNLI | \(qnliResults)
-      WNLI | \(wnliResults)
-      SNLI | \(snliResults)
-      MNLI | \(mnliResults)
-       QQP | \(qqpResults)
-      ================
-      """
-    logger.info("\(results)")
+    logger.info("================================================================================")
+    logger.info("Step \(step) Evaluation")
+    logger.info("================================================================================")
+    for (name, task) in tasks {
+      let results = task.evaluate(using: architecture)
+        .map { "\($0.key) = \($0.value)" }
+        .joined(separator: " | ")
+      logger.info("\(task: name) | \(results)")
+    }
+    logger.info("================================================================================")
   }
-  let mrpcLoss = mrpc.update(architecture: &architecture, using: &optimizer)
-  let colaLoss = cola.update(architecture: &architecture, using: &optimizer)
-  let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
-  let sstLoss = sst.update(architecture: &architecture, using: &optimizer)
-  let stsLoss = sts.update(architecture: &architecture, using: &optimizer)
-  let qnliLoss = qnli.update(architecture: &architecture, using: &optimizer)
-  let wnliLoss = wnli.update(architecture: &architecture, using: &optimizer)
-  let snliLoss = snli.update(architecture: &architecture, using: &optimizer)
-  let mnliLoss = mnli.update(architecture: &architecture, using: &optimizer)
-  let qqpLoss = qqp.update(architecture: &architecture, using: &optimizer)
-  let message = "Step \(step: step) | " +
-    "MRPC: \(loss: mrpcLoss) | " +
-    "CoLA: \(loss: colaLoss) | " +
-    "RTE: \(loss: rteLoss) | " +
-    "SST: \(loss: sstLoss) | " +
-    "STS: \(loss: stsLoss) | " +
-    "QNLI: \(loss: qnliLoss) | " +
-    "WNLI: \(loss: wnliLoss) | " +
-    "SNLI: \(loss: snliLoss) | " +
-    "MNLI: \(loss: mnliLoss) | " +
-    "QQP: \(loss: qqpLoss)"
-  logger.info("\(message)")
+
+  var losses = [String]()
+  losses.reserveCapacity(tasks.count)
+  for taskIndex in tasks.indices {
+    let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
+    losses.append("\(task: tasks[taskIndex].0): \(loss: loss)")
+  }
+
+  logger.info("Step \(step: step) | \(losses.joined(separator: " | "))")
 }
