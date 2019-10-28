@@ -84,8 +84,37 @@ public func pearsonCorrelationCoefficient(predictions: [Float], groundTruth: [Fl
 /// - Source: [https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient](
 ///             https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient).
 public func spearmanCorrelationCoefficient(predictions: [Float], groundTruth: [Float]) -> Float {
-  let differences = zip(predictions, groundTruth).map { ($0 - $1) * ($0 - $1) }.reduce(0, +)
+  let pRanked = predictions.ranked()
+  let tRanked = groundTruth.ranked()
+  let differences = zip(pRanked, tRanked).map { ($0 - $1) * ($0 - $1) }.reduce(0, +)
   let n = Float(predictions.count)
   let denominator = n * (n * n - 1)
   return 1 - 6 * differences / denominator
+}
+
+extension Array where Element == Float {
+  /// Returns the rank of each element in this array.
+  ///
+  /// - Note: Ties are broken by averaging the ranks of the corresponding elements.
+  internal func ranked() -> [Float] {
+    let sorted = self.enumerated().sorted(by: { $0.1 < $1.1 })
+    var ranks = Array((0..<count).map(Float.init))
+    var rank = 1
+    var n = 1
+    var i = 0
+    while i < count {
+      var j = i
+
+      // Get the number of elements with equal rank.
+      while j < count - 1 && sorted[j].1 == sorted[j + 1].1 { j += 1 }
+      n = j - i + 1
+
+      // Compute and assign the rank.
+      for j in 0..<n { ranks[sorted[i + j].0] = Float(rank) + Float(n - 1) * 0.5 }
+
+      rank += n
+      i += n
+    }
+    return ranks
+  }
 }
