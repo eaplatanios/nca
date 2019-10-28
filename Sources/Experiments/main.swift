@@ -35,51 +35,65 @@ let ncaDir = currentDir.appendingPathComponent("temp")
 let modulesDir = ncaDir.appendingPathComponent("modules")
 let tasksDir = ncaDir.appendingPathComponent("tasks")
 
-let albertDir = modulesDir
+let bertDir = modulesDir
   .appendingPathComponent("text")
-  .appendingPathComponent("albert")
-let albertPreTrainedModel = ALBERT.PreTrainedModel.base
-try albertPreTrainedModel.maybeDownload(to: albertDir)
+  .appendingPathComponent("bert")
+let bertPreTrainedModel = BERT.PreTrainedModel.base(cased: false, multilingual: false)
+try bertPreTrainedModel.maybeDownload(to: bertDir)
+let bertConfigurationURL = bertDir
+  .appendingPathComponent(bertPreTrainedModel.name)
+  .appendingPathComponent("bert_config.json")
+let vocabularyURL = bertDir
+  .appendingPathComponent(bertPreTrainedModel.name)
+  .appendingPathComponent("vocab.txt")
+let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
+let bertConfiguration = try! BERT.Configuration(fromFile: bertConfigurationURL)
 
-let vocabularyURL = albertDir
-  .appendingPathComponent(albertPreTrainedModel.name)
-  .appendingPathComponent("assets")
-  .appendingPathComponent("30k-clean.model")
-let vocabulary = try! Vocabulary(fromSentencePieceModel: vocabularyURL)
-let albertConfiguration = albertPreTrainedModel.configuration
+//let albertDir = modulesDir
+//  .appendingPathComponent("text")
+//  .appendingPathComponent("albert")
+//let albertPreTrainedModel = ALBERT.PreTrainedModel.base
+//try albertPreTrainedModel.maybeDownload(to: albertDir)
+//let vocabularyURL = albertDir
+//  .appendingPathComponent(albertPreTrainedModel.name)
+//  .appendingPathComponent("assets")
+//  .appendingPathComponent("30k-clean.model")
+//let vocabulary = try! Vocabulary(fromSentencePieceModel: vocabularyURL)
+//let albertConfiguration = albertPreTrainedModel.configuration
+
 let textTokenizer = FullTextTokenizer(
   caseSensitive: false,
   vocabulary: vocabulary,
   unknownToken: "[UNK]",
-  maxTokenLength: albertConfiguration.maxSequenceLength)
+  maxTokenLength: bertConfiguration.maxSequenceLength)
 
 var mrpc = try! MRPC(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 var cola = try! CoLA(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 var rte = try! RTE(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 var sst = try! SST(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // albertConfiguration.maxSequenceLength,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
 
 var architecture = SimpleArchitecture(
-  albertConfiguration: albertConfiguration,
-  hiddenSize: albertConfiguration.hiddenSize,
+  bertConfiguration: bertConfiguration,
+  hiddenSize: 512,
   contextEmbeddingSize: 16,
   reasoningHiddenSize: 512)
-try! architecture.textPerception.load(preTrainedModel: albertPreTrainedModel, from: albertDir)
+try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
 var optimizer = LAMB(
   for: architecture,

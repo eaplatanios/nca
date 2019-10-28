@@ -104,7 +104,7 @@ public struct SimpleArchitecture: Architecture {
 
   public var contextEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
-  public var textPerception: ALBERT
+  public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
@@ -124,7 +124,7 @@ public struct SimpleArchitecture: Architecture {
   }
 
   public init(
-    albertConfiguration: ALBERT.Configuration,
+    bertConfiguration: BERT.Configuration,
     hiddenSize: Int,
     contextEmbeddingSize: Int,
     reasoningHiddenSize: Int
@@ -132,57 +132,57 @@ public struct SimpleArchitecture: Architecture {
     self.hiddenSize = hiddenSize
     self.contextEmbeddingSize = contextEmbeddingSize
     let initializer = truncatedNormalInitializer(
-      standardDeviation: Tensor<Float>(albertConfiguration.initializerStandardDeviation))
+      standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
     self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
-    self.textPerception = ALBERT(configuration: albertConfiguration)
+    self.textPerception = BERT(configuration: bertConfiguration)
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
-      outputSize: albertConfiguration.hiddenSize,
+      outputSize: bertConfiguration.hiddenSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
     self.textPoolingMultiHeadAttention = MultiHeadAttention(
-      sourceSize: albertConfiguration.hiddenSize,
-      targetSize: albertConfiguration.hiddenSize,
-      headCount: albertConfiguration.attentionHeadCount,
-      headSize: albertConfiguration.hiddenSize / albertConfiguration.attentionHeadCount,
+      sourceSize: bertConfiguration.hiddenSize,
+      targetSize: bertConfiguration.hiddenSize,
+      headCount: bertConfiguration.attentionHeadCount,
+      headSize: bertConfiguration.hiddenSize / bertConfiguration.attentionHeadCount,
       queryActivation: { $0 },
       keyActivation: { $0 },
       valueActivation: { $0 },
-      attentionDropoutProbability: albertConfiguration.attentionDropoutProbability,
+      attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
       matrixResult: true)
     let textPoolingOutputDenseBase = Affine<Float>(
-      inputSize: albertConfiguration.hiddenSize,
+      inputSize: bertConfiguration.hiddenSize,
       outputSize: hiddenSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
     self.textPoolingOutputDense = ContextualizedLayer(
       base: textPoolingOutputDenseBase,
       generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: textPoolingOutputDenseBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
     let reasoningBase = Sequential(
       Affine<Float>(
         inputSize: hiddenSize,
         outputSize: reasoningHiddenSize,
-        activation: albertConfiguration.intermediateActivation.activationFunction(),
+        activation: bertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))),
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
       Affine<Float>(
         inputSize: reasoningHiddenSize,
         outputSize: hiddenSize,
-        activation: albertConfiguration.intermediateActivation.activationFunction(),
+        activation: bertConfiguration.intermediateActivation.activationFunction(),
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
       generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(albertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
