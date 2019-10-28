@@ -212,13 +212,13 @@ extension STS {
       }
     }
 
-    return lines.enumerated().map { (i, line) in
+    return lines.dropFirst().enumerated().map { (i, line) in
       let lineParts = line.components(separatedBy: "\t")
       return Example(
         id: "\(fileType.rawValue)-\(i)",
         sentence1: lineParts[7],
         sentence2: lineParts[8],
-        equivalence: Float(lineParts[9]))
+        equivalence: Float(lineParts[9])!)
     }
   }
 }
