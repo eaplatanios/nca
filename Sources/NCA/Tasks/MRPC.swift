@@ -107,8 +107,9 @@ extension MRPC {
       let parts = line.split(separator: "\t")
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       let example = Example(
-        ids: (parts[1], parts[2]),
-        sentences: (parts[3], parts[4]),
+        id: "\(parts[1]):\(parts[2])",
+        sentence1: parts[3],
+        sentence2: parts[4],
         isParaphrase: parts[0] == "1")
       if devIds.contains(example.id) {
         devExamples.append(example)
@@ -121,12 +122,13 @@ extension MRPC {
 
     // Load the test examples.
     let testLines = try String(contentsOf: testDataURL, encoding: .utf8).split { $0.isNewline }
-    self.testExamples = testLines.dropFirst().map { line in
+    self.testExamples = testLines.dropFirst().enumerated().map { (index, line) in
       let parts = line.split { $0 == "\t" }
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       return Example(
-        ids: (parts[1], parts[2]),
-        sentences: (parts[3], parts[4]),
+        id: String(index),
+        sentence1: parts[3],
+        sentence2: parts[4],
         isParaphrase: parts[0] == "1")
     }
 
@@ -170,7 +172,7 @@ extension MRPC {
     textTokenizer: FullTextTokenizer
   ) -> DataBatch {
     let tokenized = preprocessText(
-      sequences: [example.sentences.0, example.sentences.1],
+      sequences: [example.sentence1, example.sentence2],
       maxSequenceLength: maxSequenceLength,
       usingTokenizer: textTokenizer)
     return DataBatch(
@@ -189,15 +191,15 @@ extension MRPC {
 extension MRPC {
   /// MRPC example.
   public struct Example {
-    public let ids: (String, String)
-    public let sentences: (String, String)
+    public let id: String
+    public let sentence1: String
+    public let sentence2: String
     public let isParaphrase: Bool?
 
-    public var id: String { "\(ids.0):\(ids.1)" }
-
-    public init(ids: (String, String), sentences: (String, String), isParaphrase: Bool?) {
-      self.ids = ids
-      self.sentences = sentences
+    public init(id: String, sentence1: String, sentence2: String, isParaphrase: Bool?) {
+      self.id = id
+      self.sentence1 = sentence1
+      self.sentence2 = sentence2
       self.isParaphrase = isParaphrase
     }
   }

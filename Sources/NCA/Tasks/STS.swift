@@ -205,7 +205,7 @@ extension STS {
       return lines.dropFirst().enumerated().map { (i, line) in
         let lineParts = line.components(separatedBy: "\t")
         return Example(
-          id: "\(fileType.rawValue)-\(i)",
+          id: lineParts[0],
           sentence1: lineParts[7],
           sentence2: lineParts[8],
           equivalence: nil)
@@ -215,7 +215,7 @@ extension STS {
     return lines.dropFirst().enumerated().map { (i, line) in
       let lineParts = line.components(separatedBy: "\t")
       return Example(
-        id: "\(fileType.rawValue)-\(i)",
+        id: lineParts[0],
         sentence1: lineParts[7],
         sentence2: lineParts[8],
         equivalence: Float(lineParts[9])!)

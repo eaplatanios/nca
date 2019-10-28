@@ -248,7 +248,7 @@ extension MNLI {
       return lines.dropFirst().enumerated().map { (i, line) in
         let lineParts = line.components(separatedBy: "\t")
         return Example(
-          id: "\(fileType.rawValue)-\(i)",
+          id: lineParts[0],
           sentence1: lineParts[8],
           sentence2: lineParts[9],
           entailment: nil)
@@ -258,7 +258,7 @@ extension MNLI {
     return lines.dropFirst().enumerated().map { (i, line) in
       let lineParts = line.components(separatedBy: "\t")
       return Example(
-        id: "\(fileType.rawValue)-\(i)",
+        id: lineParts[0],
         sentence1: lineParts[8],
         sentence2: lineParts[9],
         entailment: lineParts.last! == "entailment" ?

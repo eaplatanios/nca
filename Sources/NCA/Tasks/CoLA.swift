@@ -203,7 +203,7 @@ extension CoLA {
       return lines.dropFirst().enumerated().map { (i, line) in
         let lineParts = line.components(separatedBy: "\t")
         return Example(
-          id: "\(fileType.rawValue)-\(i)",
+          id: lineParts[0],
           sentence: lineParts[1],
           isAcceptable: nil)
       }
@@ -212,7 +212,7 @@ extension CoLA {
     return lines.enumerated().map { (i, line) in
       let lineParts = line.components(separatedBy: "\t")
       return Example(
-        id: "\(fileType.rawValue)-\(i)",
+        id: lineParts[0],
         sentence: lineParts[3],
         isAcceptable: lineParts[1] == "1")
     }

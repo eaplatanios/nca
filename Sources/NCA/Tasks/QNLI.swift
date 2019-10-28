@@ -207,7 +207,7 @@ extension QNLI {
       return lines.dropFirst().enumerated().map { (i, line) in
         let lineParts = line.components(separatedBy: "\t")
         return Example(
-          id: "\(fileType.rawValue)-\(i)",
+          id: lineParts[0],
           sentence1: lineParts[1],
           sentence2: lineParts[2],
           entailment: nil)
@@ -217,7 +217,7 @@ extension QNLI {
     return lines.dropFirst().enumerated().map { (i, line) in
       let lineParts = line.components(separatedBy: "\t")
       return Example(
-        id: "\(fileType.rawValue)-\(i)",
+        id: lineParts[0],
         sentence1: lineParts[1],
         sentence2: lineParts[2],
         entailment: lineParts[3] == "entailment")

@@ -207,7 +207,7 @@ extension QQP {
       return lines.dropFirst().enumerated().map { (i, line) in
         let lineParts = line.components(separatedBy: "\t")
         return Example(
-          id: "\(fileType.rawValue)-\(i)",
+          id: lineParts[0],
           question1: lineParts[1],
           question2: lineParts[2],
           equivalent: nil)
@@ -220,7 +220,7 @@ extension QQP {
         return nil
       }
       return Example(
-        id: "\(fileType.rawValue)-\(i)",
+        id: lineParts[0],
         question1: lineParts[3],
         question2: lineParts[4],
         equivalent: lineParts[5] == "1")
