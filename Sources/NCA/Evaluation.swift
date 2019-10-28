@@ -46,7 +46,8 @@ public func f1Score(predictions: [Bool], groundTruth: [Bool]) -> Float {
 /// into account the balance ratios of the four confusion matrix categories (true positives, true
 /// negatives, false positives, false negatives).
 ///
-/// - Source: [https://en.wikipedia.org/wiki/Matthews_correlation_coefficient](https://en.wikipedia.org/wiki/Matthews_correlation_coefficient).
+/// - Source: [https://en.wikipedia.org/wiki/Matthews_correlation_coefficient](
+///             https://en.wikipedia.org/wiki/Matthews_correlation_coefficient).
 public func matthewsCorrelationCoefficient(predictions: [Bool], groundTruth: [Bool]) -> Float {
   var tp = 0 // True positives.
   var tn = 0 // True negatives.
@@ -63,4 +64,28 @@ public func matthewsCorrelationCoefficient(predictions: [Bool], groundTruth: [Bo
   let nominator = Float(tp * tn - fp * fn)
   let denominator = Float((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)).squareRoot()
   return denominator != 0 ? nominator / denominator : 0
+}
+
+/// Computes the Pearson correlation coefficient.
+///
+/// - Source: [https://en.wikipedia.org/wiki/Pearson_correlation_coefficient](
+///             https://en.wikipedia.org/wiki/Pearson_correlation_coefficient).
+public func pearsonCorrelationCoefficient(predictions: [Float], groundTruth: [Float]) -> Float {
+  let pMean = predictions.reduce(0, +) / Float(predictions.count)
+  let tMean = groundTruth.reduce(0, +) / Float(groundTruth.count)
+  let nominator = zip(predictions, groundTruth).map { ($0 - pMean) * ($1 - tMean) }.reduce(0, +)
+  let pDenominator = (predictions.map { ($0 - pMean) * ($0 - pMean) }).reduce(0, +).squareRoot()
+  let tDenominator = (groundTruth.map { ($0 - tMean) * ($0 - tMean) }).reduce(0, +).squareRoot()
+  return nominator / (pDenominator * tDenominator)
+}
+
+/// Computes the Spearman correlation coefficient.
+///
+/// - Source: [https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient](
+///             https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient).
+public func spearmanCorrelationCoefficient(predictions: [Float], groundTruth: [Float]) -> Float {
+  let differences = zip(predictions, groundTruth).map { ($0 - $1) * ($0 - $1) }.reduce(0, +)
+  let n = Float(predictions.count)
+  let denominator = n * (n * n - 1)
+  return 1 - 6 * differences / denominator
 }

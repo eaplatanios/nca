@@ -87,6 +87,11 @@ var sst = try! SST(
   textTokenizer: textTokenizer,
   maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
+var sts = try! STS(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  batchSize: 32)
 var qnli = try! QNLI(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
@@ -134,11 +139,12 @@ var optimizer = WeightDecayedAdam(
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
-  if step % 10 == 0 {
+  if step % 50 == 0 {
     let mrpcResults = mrpc.evaluate(using: architecture).summary
     let colaResults = cola.evaluate(using: architecture).summary
     let rteResults = rte.evaluate(using: architecture).summary
     let sstResults = sst.evaluate(using: architecture).summary
+    let stsResults = sts.evaluate(using: architecture).summary
     let qnliResults = qnli.evaluate(using: architecture).summary
     let wnliResults = wnli.evaluate(using: architecture).summary
     let mnliResults = mnli.evaluate(using: architecture).summary
@@ -152,6 +158,7 @@ for step in 1..<10000 {
       CoLA | \(colaResults)
        RTE | \(rteResults)
        SST | \(sstResults)
+       STS | \(stsResults)
       QNLI | \(qnliResults)
       WNLI | \(wnliResults)
       MNLI | \(mnliResults)
@@ -164,6 +171,7 @@ for step in 1..<10000 {
   let colaLoss = cola.update(architecture: &architecture, using: &optimizer)
   let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
   let sstLoss = sst.update(architecture: &architecture, using: &optimizer)
+  let stsLoss = sts.update(architecture: &architecture, using: &optimizer)
   let qnliLoss = qnli.update(architecture: &architecture, using: &optimizer)
   let wnliLoss = wnli.update(architecture: &architecture, using: &optimizer)
   let mnliLoss = mnli.update(architecture: &architecture, using: &optimizer)
@@ -173,9 +181,10 @@ for step in 1..<10000 {
     "CoLA: \(loss: colaLoss) | " +
     "RTE: \(loss: rteLoss) | " +
     "SST: \(loss: sstLoss) | " +
-    "QNLI: \(loss: qnliLoss) |" +
-    "WNLI: \(loss: wnliLoss) |" +
-    "MNLI: \(loss: mnliLoss) |" +
+    "STS: \(loss: stsLoss) | " +
+    "QNLI: \(loss: qnliLoss) | " +
+    "WNLI: \(loss: wnliLoss) | " +
+    "MNLI: \(loss: mnliLoss) | " +
     "QQP: \(loss: qqpLoss)"
   logger.info("\(message)")
 }
