@@ -91,21 +91,22 @@ var sst = try! SST(
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
   hiddenSize: 512,
-  contextEmbeddingSize: 16,
+  contextEmbeddingSize: 32,
   reasoningHiddenSize: 512)
 try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
-var optimizer = LAMB(
+var optimizer = WeightDecayedAdam(
   for: architecture,
   learningRate: ExponentiallyDecayedParameter(
     baseParameter: LinearlyWarmedUpParameter(
       baseParameter: FixedParameter(Float(2e-5)),
-      warmUpStepCount: 100,
+      warmUpStepCount: 500,
       warmUpOffset: 0),
     decayRate: 0.99,
     decayStepCount: 1,
-    startStep: 100),
+    startStep: 500),
   weightDecayRate: 0.01,
+  useBiasCorrection: false,
   beta1: 0.9,
   beta2: 0.999,
   epsilon: 1e-6,

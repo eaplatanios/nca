@@ -28,7 +28,7 @@ public struct RTE: Task {
 
   public let problem: Classification = Classification(
     context: .entailment,
-    concepts: [.negative, .positive])
+    concepts: [.neutral, .positive])
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
