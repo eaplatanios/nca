@@ -67,50 +67,56 @@ let textTokenizer = FullTextTokenizer(
   unknownToken: "[UNK]",
   maxTokenLength: bertConfiguration.maxSequenceLength)
 
+let maxSequenceLength = 128 // bertConfiguration.maxSequenceLength
 var mrpc = try! MRPC(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var cola = try! CoLA(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var rte = try! RTE(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var sst = try! SST(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var sts = try! STS(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var qnli = try! QNLI(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var wnli = try! WNLI(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
+  batchSize: 32)
+var snli = try! SNLI(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var mnli = try! MNLI(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 var qqp = try! QQP(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
-  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  maxSequenceLength: maxSequenceLength,
   batchSize: 32)
 
 var architecture = SimpleArchitecture(
@@ -147,6 +153,7 @@ for step in 1..<10000 {
     let stsResults = sts.evaluate(using: architecture).summary
     let qnliResults = qnli.evaluate(using: architecture).summary
     let wnliResults = wnli.evaluate(using: architecture).summary
+    let snliResults = snli.evaluate(using: architecture).summary
     let mnliResults = mnli.evaluate(using: architecture).summary
     let qqpResults = qqp.evaluate(using: architecture).summary
     let results =
@@ -161,6 +168,7 @@ for step in 1..<10000 {
        STS | \(stsResults)
       QNLI | \(qnliResults)
       WNLI | \(wnliResults)
+      SNLI | \(snliResults)
       MNLI | \(mnliResults)
        QQP | \(qqpResults)
       ================
@@ -174,6 +182,7 @@ for step in 1..<10000 {
   let stsLoss = sts.update(architecture: &architecture, using: &optimizer)
   let qnliLoss = qnli.update(architecture: &architecture, using: &optimizer)
   let wnliLoss = wnli.update(architecture: &architecture, using: &optimizer)
+  let snliLoss = snli.update(architecture: &architecture, using: &optimizer)
   let mnliLoss = mnli.update(architecture: &architecture, using: &optimizer)
   let qqpLoss = qqp.update(architecture: &architecture, using: &optimizer)
   let message = "Step \(step: step) | " +
@@ -184,6 +193,7 @@ for step in 1..<10000 {
     "STS: \(loss: stsLoss) | " +
     "QNLI: \(loss: qnliLoss) | " +
     "WNLI: \(loss: wnliLoss) | " +
+    "SNLI: \(loss: snliLoss) | " +
     "MNLI: \(loss: mnliLoss) | " +
     "QQP: \(loss: qqpLoss)"
   logger.info("\(message)")
