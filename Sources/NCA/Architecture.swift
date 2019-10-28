@@ -104,7 +104,7 @@ public struct SimpleArchitecture: Architecture {
   @noDerivative public let hiddenSize: Int
 
   public var contextEmbeddings: Tensor<Float>
-  @noDerivative public var conceptEmbeddings: Tensor<Float> // TODO: !!! Temporary / Think about how to freze/unfreeze it later.
+  public var conceptEmbeddings: Tensor<Float>
   public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
@@ -115,7 +115,7 @@ public struct SimpleArchitecture: Architecture {
   public var regularizationValue: TangentVector {
     TangentVector(
       contextEmbeddings: contextEmbeddings,
-      // conceptEmbeddings: conceptEmbeddings,
+      conceptEmbeddings: conceptEmbeddings,
       textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
