@@ -92,6 +92,11 @@ var qnli = try! QNLI(
   textTokenizer: textTokenizer,
   maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
   batchSize: 32)
+var wnli = try! WNLI(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: 128, // bertConfiguration.maxSequenceLength,
+  batchSize: 32)
 var qqp = try! QQP(
   taskDirectoryURL: tasksDir,
   textTokenizer: textTokenizer,
@@ -130,18 +135,20 @@ for step in 1..<10000 {
     let rteResults = rte.evaluate(using: architecture).summary
     let sstResults = sst.evaluate(using: architecture).summary
     let qnliResults = qnli.evaluate(using: architecture).summary
+    let wnliResults = wnli.evaluate(using: architecture).summary
     let qqpResults = qqp.evaluate(using: architecture).summary
     let results =
       """
       ================
       Step \(step) Evaluation
       ================
-      MRPC Evaluation: \(mrpcResults)
-      CoLA Evaluation: \(colaResults)
-      RTE Evaluation: \(rteResults)
-      SST Evaluation: \(sstResults)
-      QNLI Evaluation: \(qnliResults)
-      QQP Evaluation: \(qqpResults)
+      MRPC | \(mrpcResults)
+      CoLA | \(colaResults)
+       RTE | \(rteResults)
+       SST | \(sstResults)
+      QNLI | \(qnliResults)
+      WNLI | \(wnliResults)
+       QQP | \(qqpResults)
       ================
       """
     logger.info("\(results)")
@@ -151,13 +158,15 @@ for step in 1..<10000 {
   let rteLoss = rte.update(architecture: &architecture, using: &optimizer)
   let sstLoss = sst.update(architecture: &architecture, using: &optimizer)
   let qnliLoss = qnli.update(architecture: &architecture, using: &optimizer)
+  let wnliLoss = wnli.update(architecture: &architecture, using: &optimizer)
   let qqpLoss = qqp.update(architecture: &architecture, using: &optimizer)
   let message = "Step \(step: step) | " +
-    "MRPC Loss = \(loss: mrpcLoss) | " +
-    "CoLA Loss = \(loss: colaLoss) | " +
-    "RTE Loss = \(loss: rteLoss) | " +
-    "SST Loss = \(loss: sstLoss) | " +
-    "QNLI Loss = \(loss: qnliLoss) |" +
-    "QQP Loss = \(loss: qqpLoss)"
+    "MRPC: \(loss: mrpcLoss) | " +
+    "CoLA: \(loss: colaLoss) | " +
+    "RTE: \(loss: rteLoss) | " +
+    "SST: \(loss: sstLoss) | " +
+    "QNLI: \(loss: qnliLoss) |" +
+    "WNLI: \(loss: wnliLoss) |" +
+    "QQP: \(loss: qqpLoss)"
   logger.info("\(message)")
 }
