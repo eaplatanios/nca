@@ -49,7 +49,7 @@ public struct STS: Task {
     let (loss, gradient) = architecture.valueWithGradient {
       softmaxCrossEntropy(
         logits: $0.classify(input, problem: problem),
-        probabilities: Tensor<Float>(concatenating: [1 - labels, labels], alongAxis: -1),
+        probabilities: Tensor<Float>(stacking: [1 - labels, labels], alongAxis: -1),
         reduction: { $0.mean() })
     }
     optimizer.update(&architecture, along: gradient)
