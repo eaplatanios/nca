@@ -31,6 +31,9 @@ where TangentVector: KeyPathIterable {
 
   @differentiable
   func label(reasoningOutput: Tensor<Float>, problem: Labeling) -> Tensor<Float>
+
+  @differentiable
+  func score(reasoningOutput: Tensor<Float>) -> Tensor<Float>
 }
 
 extension Architecture {
@@ -50,6 +53,24 @@ extension Architecture {
       problem: problem)
     latent = reason(over: latent, problem: problem)
     return classify(reasoningOutput: latent, problem: problem)
+  }
+
+  @differentiable
+  public func score(_ input: ArchitectureInput, problem: Scoring) -> Tensor<Float> {
+// TODO: !!! Swift compiler AutoDiff bug.
+//    var latent = Tensor<Float>(zeros: [])
+//    if let text = input.text {
+//      latent += pool(
+//        text: text,
+//        perceivedText: perceive(text: text, problem: problem),
+//        problem: problem)
+//    }
+    var latent = pool(
+      text: input.text!,
+      perceivedText: perceive(text: input.text!, problem: problem),
+      problem: problem)
+    latent = reason(over: latent, problem: problem)
+    return score(reasoningOutput: latent)
   }
 }
 
@@ -99,6 +120,14 @@ public struct Labeling: Problem {
   }
 }
 
+public struct Scoring: Problem {
+  public let context: Context
+
+  public init(context: Context) {
+    self.context = context
+  }
+}
+
 public struct SimpleArchitecture: Architecture {
   @noDerivative public let contextEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
@@ -111,6 +140,7 @@ public struct SimpleArchitecture: Architecture {
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
+  public var scoringDense: Affine<Float>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -121,7 +151,8 @@ public struct SimpleArchitecture: Architecture {
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
       reasoning: reasoning.regularizationValue,
-      reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue)
+      reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue,
+      scoringDense: scoringDense.regularizationValue)
   }
 
   public init(
@@ -187,6 +218,12 @@ public struct SimpleArchitecture: Architecture {
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
+    self.scoringDense = Affine<Float>(
+      inputSize: hiddenSize,
+      outputSize: 1,
+      activation: sigmoid,
+      weightInitializer: truncatedNormalInitializer(
+        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
   }
 
   @differentiable
@@ -240,5 +277,10 @@ public struct SimpleArchitecture: Architecture {
     let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
     let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
     return logSigmoid(logits)
+  }
+
+  @differentiable
+  public func score(reasoningOutput: Tensor<Float>) -> Tensor<Float> {
+    scoringDense(reasoningOutput).squeezingShape(at: -1)
   }
 }

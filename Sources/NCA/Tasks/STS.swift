@@ -24,9 +24,7 @@ public struct STS: Task {
   public let maxSequenceLength: Int
   public let batchSize: Int
 
-  public let problem: Classification = Classification(
-    context: .equivalence,
-    concepts: [.negative, .positive])
+  public let problem: Scoring = Scoring(context: .equivalence)
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
@@ -47,9 +45,9 @@ public struct STS: Task {
     let problem = self.problem
     let labels = batch.labels!
     let (loss, gradient) = architecture.valueWithGradient {
-      softmaxCrossEntropy(
-        logits: $0.classify(input, problem: problem),
-        probabilities: Tensor<Float>(stacking: [1 - labels, labels], alongAxis: -1),
+      l2Loss(
+        predicted: $0.score(input, problem: problem),
+        expected: labels,
         reduction: { $0.mean() })
     }
     optimizer.update(&architecture, along: gradient)
@@ -62,8 +60,8 @@ public struct STS: Task {
     var devGroundTruth = [Float]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.classify(input, problem: problem)
-      let predictedLabels = softmax(predictions)[0..., 1] * 5
+      let predictions = architecture.score(input, problem: problem)
+      let predictedLabels = predictions * 5
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
       devGroundTruth.append(contentsOf: (batch.labels! * 5).scalars)
     }
