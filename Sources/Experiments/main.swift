@@ -166,9 +166,9 @@ var tasks = taskInitializers.concurrentMap { $0() }
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
-  hiddenSize: 512,
-  contextEmbeddingSize: 64,
-  reasoningHiddenSize: 512)
+  hiddenSize: 1024,
+  contextEmbeddingSize: 16,
+  reasoningHiddenSize: 1024)
 try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
 var optimizer = WeightDecayedAdam(
@@ -178,7 +178,7 @@ var optimizer = WeightDecayedAdam(
       baseParameter: FixedParameter(Float(2e-5)),
       warmUpStepCount: 1000,
       warmUpOffset: 0),
-    decayRate: 0.99,
+    decayRate: 0.999,
     decayStepCount: 1,
     startStep: 1000),
   weightDecayRate: 0.01,
@@ -197,6 +197,7 @@ for step in 0..<10000 {
     logger.info("╠\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 8).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 8).joined())╣")
     for taskIndex in tasks.indices {
       let (name, task) = tasks[taskIndex]
+      if name == "MNLI" || name == "QQP" { continue }
       var results = task.evaluate(using: architecture)
         .sorted(by: { $0.key < $1.key })
         .map { "\(metricName: $0.key) │ \(metricValue: $0.value)" }
