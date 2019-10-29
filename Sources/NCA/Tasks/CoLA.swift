@@ -126,7 +126,7 @@ extension CoLA {
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
-        sizeFn: { _ in batchSize },
+        sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
@@ -136,7 +136,7 @@ extension CoLA {
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
-        sizeFn: { _ in batchSize },
+        sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
@@ -146,7 +146,7 @@ extension CoLA {
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
-        sizeFn: { _ in batchSize },
+        sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
