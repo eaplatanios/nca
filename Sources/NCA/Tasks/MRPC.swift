@@ -45,7 +45,7 @@ public struct MRPC: Task {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
     let problem = self.problem
-    let labels = batch.labels!
+    let labels = batch.labels
     let (loss, gradient) = architecture.valueWithGradient {
       softmaxCrossEntropy(
         logits: $0.classify(input, problem: problem),
@@ -68,10 +68,10 @@ public struct MRPC: Task {
     return [
       "f1Score": NCA.f1Score(
         predictions: devPredictedLabels,
-        groundTruth: devExamples.map { $0.isParaphrase! }),
+        groundTruth: devExamples.map { $0.isParaphrase }),
       "accuracy": NCA.accuracy(
         predictions: devPredictedLabels,
-        groundTruth: devExamples.map { $0.isParaphrase! })]
+        groundTruth: devExamples.map { $0.isParaphrase })]
   }
 }
 
@@ -155,19 +155,28 @@ extension MRPC {
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels }))
+        })
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels }))
+        })
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels }))
+        })
   }
 
   /// Converts an example to a data batch.
@@ -192,7 +201,7 @@ extension MRPC {
         tokenIds: Tensor(tokenized.tokenIds.map(Int32.init)),
         tokenTypeIds: Tensor(tokenized.tokenTypeIds.map(Int32.init)),
         mask: Tensor(tokenized.mask.map { $0 ? 1 : 0 })),
-      labels: example.isParaphrase.map { Tensor($0 ? 1 : 0) })
+      labels: Tensor(example.isParaphrase ? 1 : 0))
   }
 }
 
@@ -206,9 +215,9 @@ extension MRPC {
     public let id: String
     public let sentence1: String
     public let sentence2: String
-    public let isParaphrase: Bool?
+    public let isParaphrase: Bool
 
-    public init(id: String, sentence1: String, sentence2: String, isParaphrase: Bool?) {
+    public init(id: String, sentence1: String, sentence2: String, isParaphrase: Bool) {
       self.id = id
       self.sentence1 = sentence1
       self.sentence2 = sentence2
@@ -218,10 +227,10 @@ extension MRPC {
 
   /// MRPC data batch.
   public struct DataBatch: KeyPathIterable {
-    public var inputs: TextBatch      // TODO: !!! Mutable in order to allow for batching.
-    public var labels: Tensor<Int32>? // TODO: !!! Mutable in order to allow for batching.
+    public var inputs: TextBatch     // TODO: !!! Mutable in order to allow for batching.
+    public var labels: Tensor<Int32> // TODO: !!! Mutable in order to allow for batching.
 
-    public init(inputs: TextBatch, labels: Tensor<Int32>?) {
+    public init(inputs: TextBatch, labels: Tensor<Int32>) {
       self.inputs = inputs
       self.labels = labels
     }

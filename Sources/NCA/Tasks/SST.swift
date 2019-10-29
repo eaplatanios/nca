@@ -125,19 +125,28 @@ extension SST {
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels! }))
+        })
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels! }))
+        })
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: nil)
+        })
   }
 
   /// Converts an example to a data batch.

@@ -148,31 +148,46 @@ extension MNLI {
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels! }))
+        })
     self.matchedDevDataIterator = matchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels! }))
+        })
     self.matchedTestDataIterator = matchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: nil)
+        })
     self.mismatchedDevDataIterator = mismatchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: Tensor.batch($0.map { $0.labels! }))
+        })
     self.mismatchedTestDataIterator = mismatchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
         sizeFn: { _ in batchSize },
-        reduceFn: DataBatch.batch)
+        reduceFn: { DataBatch(
+          inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
+          labels: nil)
+        })
   }
 
   /// Converts an example to a data batch.

@@ -64,7 +64,7 @@ public func createAttentionMask(forTextBatch text: TextBatch) -> Tensor<Float> {
 }
 
 /// Preprocesses an array of text sequences and prepares them for use by a text perception
-/// module. Preprocessing mainly consists of tokenization and padding.
+/// module. Preprocessing mainly consists of tokenization.
 ///
 /// - Parameters:
 ///   - sequences: Text sequences (not tokenized).
@@ -119,20 +119,29 @@ public func preprocessText(
     tokens.append("[SEP]")
     tokenTypeIds.append(sequenceId)
   }
-  var tokenIds = tokens.map { tokenizer.vocabulary.tokensToIds[$0]! }
+  let tokenIds = tokens.map { tokenizer.vocabulary.tokensToIds[$0]! }
 
   // The mask is set to `true` for real tokens and `false` for padding tokens. This is so that
   // only real tokens are attended to.
-  var mask = [Bool](repeating: true, count: tokenIds.count)
-
-  // Zero-pad up to the maximum sequence length.
-  while tokenIds.count < maxSequenceLength {
-    tokenIds.append(0)
-    tokenTypeIds.append(0)
-    mask.append(false)
-  }
+  let mask = [Bool](repeating: true, count: tokenIds.count)
 
   return TokenizedText(tokenIds: tokenIds, tokenTypeIds: tokenTypeIds, mask: mask)
+}
+
+// TODO: !!! Add documentation.
+public func padAndBatch(textBatches: [TextBatch]) -> TextBatch {
+  let maxLength = textBatches.map { $0.tokenIds.shape[0] }.max()!
+  let paddedBatches = textBatches.map { batch -> TextBatch in
+    let paddingSize = maxLength - batch.tokenIds.shape[0]
+    return TextBatch(
+      tokenIds: batch.tokenIds.padded(forSizes: [(before: 0, after: paddingSize)]),
+      tokenTypeIds: batch.tokenTypeIds.padded(forSizes: [(before: 0, after: paddingSize)]),
+      mask: batch.mask.padded(forSizes: [(before: 0, after: paddingSize)]))
+  }
+  return TextBatch(
+    tokenIds: Tensor<Int32>(stacking: paddedBatches.map { $0.tokenIds }, alongAxis: 0),
+    tokenTypeIds: Tensor<Int32>(stacking: paddedBatches.map { $0.tokenTypeIds }, alongAxis: 0),
+    mask: Tensor<Int32>(stacking: paddedBatches.map { $0.mask }, alongAxis: 0))
 }
 
 /// Vocabulary that can be used for tokenizing strings.
