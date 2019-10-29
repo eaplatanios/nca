@@ -65,27 +65,31 @@ public struct MNLI: Task {
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var matchedDevDataIterator = self.matchedDevDataIterator.copy()
     var matchedDevPredictedLabels = [Int32]()
+    var matchedDevGroundTruth = [Int32]()
     while let batch = withDevice(.cpu, perform: { matchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
       let predictions = architecture.classify(input, problem: problem)
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       matchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
+      matchedDevGroundTruth.append(contentsOf: batch.labels!.scalars)
     }
     var mismatchedDevDataIterator = self.mismatchedDevDataIterator.copy()
     var mismatchedDevPredictedLabels = [Int32]()
+    var mismatchedDevGroundTruth = [Int32]()
     while let batch = withDevice(.cpu, perform: { mismatchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
       let predictions = architecture.classify(input, problem: problem)
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       mismatchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
+      mismatchedDevGroundTruth.append(contentsOf: batch.labels!.scalars)
     }
     return [
       "matchedAccuracy": NCA.accuracy(
         predictions: matchedDevPredictedLabels,
-        groundTruth: matchedDevExamples.map { $0.entailment!.rawValue }),
+        groundTruth: matchedDevGroundTruth),
       "mismatchedAccuracy": NCA.accuracy(
         predictions: mismatchedDevPredictedLabels,
-        groundTruth: mismatchedDevExamples.map { $0.entailment!.rawValue })]
+        groundTruth: mismatchedDevGroundTruth)]
   }
 }
 

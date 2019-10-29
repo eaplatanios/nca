@@ -61,15 +61,15 @@ public struct SNLI: Task {
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator.copy()
     var devPredictedLabels = [Int32]()
+    var devGroundTruth = [Int32]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
       let predictions = architecture.classify(input, problem: problem)
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
+      devGroundTruth.append(contentsOf: batch.labels!.scalars)
     }
-    return ["accuracy": NCA.accuracy(
-      predictions: devPredictedLabels,
-      groundTruth: devExamples.map { $0.entailment!.rawValue })]
+    return ["accuracy": NCA.accuracy(predictions: devPredictedLabels, groundTruth: devGroundTruth)]
   }
 }
 

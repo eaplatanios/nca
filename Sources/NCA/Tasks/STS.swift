@@ -59,19 +59,21 @@ public struct STS: Task {
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
     var devDataIterator = self.devDataIterator.copy()
     var devPredictedLabels = [Float]()
+    var devGroundTruth = [Float]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
       let predictions = architecture.classify(input, problem: problem)
       let predictedLabels = softmax(predictions)[0..., 1] * 5
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
+      devGroundTruth.append(contentsOf: (batch.labels! * 5).scalars)
     }
     return [
       "pearsonCorrelationCoefficient": NCA.pearsonCorrelationCoefficient(
         predictions: devPredictedLabels,
-        groundTruth: devExamples.map { $0.equivalence! }),
+        groundTruth: devGroundTruth),
       "spearmanCorrelationCoefficient": NCA.spearmanCorrelationCoefficient(
         predictions: devPredictedLabels,
-        groundTruth: devExamples.map { $0.equivalence! })]
+        groundTruth: devGroundTruth)]
   }
 }
 

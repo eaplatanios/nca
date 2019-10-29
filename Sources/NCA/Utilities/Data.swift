@@ -230,7 +230,6 @@ public struct PrefetchIterator<Base: IteratorProtocol>: IteratorProtocol {
 extension PrefetchIterator {
   internal class BlockingQueue<Element> {
     private let prefetchingDispatchQueue: DispatchQueue = DispatchQueue(label: "PrefetchIterator")
-
     private let writeSemaphore: DispatchSemaphore
     private let readSemaphore: DispatchSemaphore
     private let dispatchQueue: DispatchQueue
