@@ -77,57 +77,57 @@ var tasks: [(String, Task)] = [
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("CoLA", try! CoLA(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("RTE", try! RTE(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("SST", try! SST(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("STS", try! STS(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("QNLI", try! QNLI(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("WNLI", try! WNLI(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("SNLI", try! SNLI(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("MNLI", try! MNLI(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32)),
+    batchSize: 1024)),
   ("QQP", try! QQP(
     taskDirectoryURL: tasksDir,
     textTokenizer: textTokenizer,
     maxSequenceLength: maxSequenceLength,
-    batchSize: 32))]
+    batchSize: 1024))]
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
   hiddenSize: 512,
-  contextEmbeddingSize: 32,
+  contextEmbeddingSize: 64,
   reasoningHiddenSize: 512)
 try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
