@@ -34,8 +34,8 @@ public struct MNLI: Task {
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
-  private typealias TrainDataIterator = GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>
-  private typealias DevDataIterator = GroupedIterator<MapIterator<ExampleIterator, DataBatch>>
+  private typealias TrainDataIterator = PrefetchIterator<GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>>
+  private typealias DevDataIterator = PrefetchIterator<GroupedIterator<MapIterator<ExampleIterator, DataBatch>>>
   private typealias TestDataIterator = DevDataIterator
 
   private var trainDataIterator: TrainDataIterator
@@ -63,7 +63,7 @@ public struct MNLI: Task {
   }
 
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
-    var matchedDevDataIterator = self.matchedDevDataIterator
+    var matchedDevDataIterator = self.matchedDevDataIterator.copy()
     var matchedDevPredictedLabels = [Int32]()
     while let batch = withDevice(.cpu, perform: { matchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
@@ -71,7 +71,7 @@ public struct MNLI: Task {
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       matchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
     }
-    var mismatchedDevDataIterator = self.mismatchedDevDataIterator
+    var mismatchedDevDataIterator = self.mismatchedDevDataIterator.copy()
     var mismatchedDevPredictedLabels = [Int32]()
     while let batch = withDevice(.cpu, perform: { mismatchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
@@ -152,6 +152,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
+      .prefetched(count: 2)
     self.matchedDevDataIterator = matchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -161,6 +162,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
+      .prefetched(count: 2)
     self.matchedTestDataIterator = matchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -170,6 +172,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
         })
+      .prefetched(count: 2)
     self.mismatchedDevDataIterator = mismatchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -179,6 +182,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
+      .prefetched(count: 2)
     self.mismatchedTestDataIterator = mismatchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -188,6 +192,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
         })
+      .prefetched(count: 2)
   }
 
   /// Converts an example to a data batch.

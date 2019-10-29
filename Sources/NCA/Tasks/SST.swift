@@ -30,8 +30,8 @@ public struct SST: Task {
 
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
-  private typealias TrainDataIterator = GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>
-  private typealias DevDataIterator = GroupedIterator<MapIterator<ExampleIterator, DataBatch>>
+  private typealias TrainDataIterator = PrefetchIterator<GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>>
+  private typealias DevDataIterator = PrefetchIterator<GroupedIterator<MapIterator<ExampleIterator, DataBatch>>>
   private typealias TestDataIterator = DevDataIterator
 
   private var trainDataIterator: TrainDataIterator
@@ -57,7 +57,7 @@ public struct SST: Task {
   }
 
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {
-    var devDataIterator = self.devDataIterator
+    var devDataIterator = self.devDataIterator.copy()
     var devPredictedLabels = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
@@ -129,6 +129,7 @@ extension SST {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
+      .prefetched(count: 2)
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -138,6 +139,7 @@ extension SST {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
+      .prefetched(count: 2)
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -147,6 +149,7 @@ extension SST {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
         })
+      .prefetched(count: 2)
   }
 
   /// Converts an example to a data batch.

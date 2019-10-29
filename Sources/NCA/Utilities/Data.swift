@@ -48,6 +48,11 @@ extension IteratorProtocol {
   ) -> GroupedIterator<Self> {
     GroupedIterator(self, keyFn: keyFn, sizeFn: sizeFn, reduceFn: reduceFn)
   }
+
+  // TODO: [DOC] Add documentation string.
+  public func prefetched(count: Int) -> PrefetchIterator<Self> {
+    PrefetchIterator(self, prefetchCount: count)
+  }
 }
 
 extension IteratorProtocol where Element: KeyPathIterable {
@@ -157,7 +162,7 @@ where Base.Element: KeyPathIterable {
   }
 }
 
-/// Iterator that grouped elements from another iterator.
+/// Iterator that groupes elements from another iterator.
 public struct GroupedIterator<Base: IteratorProtocol>: IteratorProtocol {
   private let keyFn: (Base.Element) -> Int
   private let sizeFn: (Int) -> Int
@@ -197,6 +202,88 @@ public struct GroupedIterator<Base: IteratorProtocol>: IteratorProtocol {
     }
     guard let elementsToReduce = elements else { return nil }
     return reduceFn(elementsToReduce)
+  }
+}
+
+/// Iterator that prefetches elements from another iterator asynchronously.
+public struct PrefetchIterator<Base: IteratorProtocol>: IteratorProtocol {
+  private let iterator: Base
+  private let prefetchCount: Int
+
+  private var queue: BlockingQueue<Base.Element>
+
+  public init(_ iterator: Base, prefetchCount: Int) {
+    self.iterator = iterator
+    self.prefetchCount = prefetchCount
+    self.queue = BlockingQueue<Base.Element>(count: prefetchCount, iterator: iterator)
+  }
+
+  public mutating func next() -> Base.Element? {
+    queue.read()
+  }
+
+  public func copy() -> PrefetchIterator {
+    PrefetchIterator(iterator, prefetchCount: prefetchCount)
+  }
+}
+
+extension PrefetchIterator {
+  internal class BlockingQueue<Element> {
+    private let prefetchingDispatchQueue: DispatchQueue = DispatchQueue(label: "PrefetchIterator")
+
+    private let writeSemaphore: DispatchSemaphore
+    private let readSemaphore: DispatchSemaphore
+    private let dispatchQueue: DispatchQueue
+    private var array: [Element?]
+    private var readIndex: Int
+    private var writeIndex: Int
+    private var depleted: Bool
+
+    internal init<Base: IteratorProtocol>(
+      count: Int,
+      iterator: Base
+    ) where Base.Element == Element {
+      self.writeSemaphore = DispatchSemaphore(value: count)
+      self.readSemaphore = DispatchSemaphore(value: 0)
+      self.dispatchQueue = DispatchQueue(label: "BlockingQueue")
+      self.array = [Element?](repeating: nil, count: count)
+      self.readIndex = 0
+      self.writeIndex = 0
+      self.depleted = false
+      var iterator = iterator
+      prefetchingDispatchQueue.async { [unowned self] () in
+        while true {
+          if let element = iterator.next() {
+            self.write(element)
+          } else {
+            self.depleted = true
+            break
+          }
+        }
+      }
+    }
+
+    private func write(_ element: Element) {
+      writeSemaphore.wait()
+      dispatchQueue.sync {
+        array[writeIndex % array.count] = element
+        writeIndex += 1
+      }
+      readSemaphore.signal()
+    }
+
+    internal func read() -> Element? {
+      if self.depleted { return nil }
+      readSemaphore.wait()
+      let element = dispatchQueue.sync { () -> Element in
+        let element = array[readIndex % array.count]!
+        array[readIndex % array.count] = nil
+        readIndex += 1
+        return element
+      }
+      writeSemaphore.signal()
+      return element
+    }
   }
 }
 
