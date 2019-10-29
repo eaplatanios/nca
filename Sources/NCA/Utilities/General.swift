@@ -28,3 +28,19 @@ public protocol Serializable {
   init(fromFile fileURL: URL) throws
   func save(toFile fileURL: URL) throws
 }
+
+extension Array {
+  // TODO: [DOC] Add documentation.
+  public func concurrentMap<B>(_ transform: @escaping (Element) -> B) -> [B] {
+    var result = Array<B?>(repeating: nil, count: count)
+    let queue = DispatchQueue(label: "concurrentMap Queue")
+    DispatchQueue.concurrentPerform(iterations: count) { index in
+      let element = self[index]
+      let transformed = transform(element)
+      queue.sync {
+        result[index] = transformed
+      }
+    }
+    return result.map { $0! }
+  }
+}

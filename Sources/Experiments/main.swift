@@ -72,57 +72,78 @@ let textTokenizer = FullTextTokenizer(
   maxTokenLength: bertConfiguration.maxSequenceLength)
 
 let maxSequenceLength = 128 // bertConfiguration.maxSequenceLength
-var tasks: [(String, Task)] = [
-  ("MRPC", try! MRPC(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("CoLA", try! CoLA(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("RTE", try! RTE(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("SST", try! SST(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("STS", try! STS(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("QNLI", try! QNLI(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("WNLI", try! WNLI(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("SNLI", try! SNLI(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("MNLI", try! MNLI(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024)),
-  ("QQP", try! QQP(
-    taskDirectoryURL: tasksDir,
-    textTokenizer: textTokenizer,
-    maxSequenceLength: maxSequenceLength,
-    batchSize: 1024))]
+let taskInitializers: [() -> (String, Task)] = [
+  { () in
+    ("MRPC", try! MRPC(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("CoLA", try! CoLA(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("RTE", try! RTE(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("SST", try! SST(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("STS", try! STS(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("QNLI", try! QNLI(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("WNLI", try! WNLI(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("SNLI", try! SNLI(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("MNLI", try! MNLI(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  },
+  { () in
+    ("QQP", try! QQP(
+      taskDirectoryURL: tasksDir,
+      textTokenizer: textTokenizer,
+      maxSequenceLength: maxSequenceLength,
+      batchSize: 1024))
+  }]
+var tasks = taskInitializers.concurrentMap { $0() }
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
