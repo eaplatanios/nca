@@ -198,6 +198,7 @@ for step in 0..<10000 {
     for taskIndex in tasks.indices {
       let (name, task) = tasks[taskIndex]
       var results = task.evaluate(using: architecture)
+        .sorted(by: { $0.key < $1.key })
         .map { "\(metricName: $0.key) │ \(metricValue: $0.value)" }
       if results.count < 2 {
         results.append("\([String](repeating: " ", count: 31).joined())│\([String](repeating: " ", count: 7).joined())")
