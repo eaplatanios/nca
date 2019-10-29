@@ -22,23 +22,33 @@ let logger = Logger(label: "NCA Experiment")
 /// Helper string interpolation extensions for logging training progress.
 extension String.StringInterpolation {
   mutating func appendInterpolation(step value: Int) {
-    appendLiteral(String(format: "%5d", value))
+    appendLiteral(String(format: "Step %d", value).leftPadding(toLength: 10, withPad: " "))
   }
 
   mutating func appendInterpolation(task value: String) {
-    appendLiteral(value.padding(toLength: 5, withPad: " ", startingAt: 0))
+    appendLiteral(value.leftPadding(toLength: 5, withPad: " "))
   }
 
   mutating func appendInterpolation(metricName value: String) {
-    appendLiteral(value.padding(toLength: 30, withPad: " ", startingAt: 0))
+    appendLiteral(value.leftPadding(toLength: 30, withPad: " "))
   }
 
   mutating func appendInterpolation(metricValue value: Float) {
-    appendLiteral(String(format: "% 2.2f", value * 100))
+    appendLiteral(String(format: "%3.2f", value * 100).leftPadding(toLength: 6, withPad: " "))
   }
 
   mutating func appendInterpolation(loss value: Float) {
     appendLiteral(String(format: "%.4f", value))
+  }
+}
+
+extension String {
+  func leftPadding(toLength: Int, withPad character: Character) -> String {
+    if count < toLength {
+      return String(repeatElement(character, count: toLength - count)) + self
+    } else {
+      return String(self[index(self.startIndex, offsetBy: count - toLength)...])
+    }
   }
 }
 
@@ -182,19 +192,19 @@ logger.info("Training.")
 for step in 0..<10000 {
   if step % 50 == 0 {
     // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
-    logger.info("╔\([String](repeating: "═", count: 89).joined())╗")
-    logger.info("║\([String](repeating: " ", count: 34).joined())Step \(step: step) Evaluation\([String](repeating: " ", count: 34).joined())║")
-    logger.info("╠\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 7).joined())╣")
+    logger.info("╔\([String](repeating: "═", count: 91).joined())╗")
+    logger.info("║\([String](repeating: " ", count: 35).joined())\(step: step) Evaluation\([String](repeating: " ", count: 35).joined())║")
+    logger.info("╠\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 8).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 8).joined())╣")
     for taskIndex in tasks.indices {
       let (name, task) = tasks[taskIndex]
       var results = task.evaluate(using: architecture)
         .map { "\(metricName: $0.key) │ \(metricValue: $0.value)" }
       if results.count < 2 {
-        results.append("\([String](repeating: " ", count: 31).joined())│\([String](repeating: " ", count: 6).joined())")
+        results.append("\([String](repeating: " ", count: 31).joined())│\([String](repeating: " ", count: 7).joined())")
       }
       logger.info("║ \(task: name) ║ \(results.joined(separator: " ║ ")) ║")
     }
-    logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╝")
+    logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 8).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 8).joined())╝")
   }
 
   var losses = [String]()
@@ -204,5 +214,5 @@ for step in 0..<10000 {
     losses.append("\(task: tasks[taskIndex].0): \(loss: loss)")
   }
 
-  logger.info("Step \(step: step) | \(losses.joined(separator: " | "))")
+  logger.info("\(step: step) | \(losses.joined(separator: " | "))")
 }
