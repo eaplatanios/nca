@@ -222,6 +222,7 @@ public struct PrefetchIterator<Base: IteratorProtocol>: IteratorProtocol {
     queue.read()
   }
 
+  // TODO: !!! This is needed because `BlockingQueue` is a class. Figure out a better solution.
   public func copy() -> PrefetchIterator {
     PrefetchIterator(iterator, prefetchCount: prefetchCount)
   }
@@ -232,11 +233,13 @@ extension PrefetchIterator {
     private let prefetchingDispatchQueue: DispatchQueue = DispatchQueue(label: "PrefetchIterator")
     private let writeSemaphore: DispatchSemaphore
     private let readSemaphore: DispatchSemaphore
+    private let deletedSemaphore: DispatchSemaphore
     private let dispatchQueue: DispatchQueue
     private var array: [Element?]
     private var readIndex: Int
     private var writeIndex: Int
     private var depleted: Bool
+    private var deleted: Bool
 
     internal init<Base: IteratorProtocol>(
       count: Int,
@@ -244,22 +247,37 @@ extension PrefetchIterator {
     ) where Base.Element == Element {
       self.writeSemaphore = DispatchSemaphore(value: count)
       self.readSemaphore = DispatchSemaphore(value: 0)
+      self.deletedSemaphore = DispatchSemaphore(value: 0)
       self.dispatchQueue = DispatchQueue(label: "BlockingQueue")
       self.array = [Element?](repeating: nil, count: count)
       self.readIndex = 0
       self.writeIndex = 0
       self.depleted = false
+      self.deleted = false
       var iterator = iterator
       prefetchingDispatchQueue.async { [unowned self] () in
-        while true {
+        while !self.deleted {
           if let element = iterator.next() {
             self.write(element)
           } else {
             self.depleted = true
+            self.deletedSemaphore.signal()
             break
           }
         }
+        self.deletedSemaphore.signal()
       }
+    }
+
+    deinit {
+      self.deleted = true
+
+      // Signal the write semaphore to make sure it's not in use anymore. It's final value must be
+      // greater or equal to its initial value.
+      for _ in 0...array.count { writeSemaphore.signal() }
+
+      // Wait for the delete semaphore to make sure the prefetching thread is done.
+      deletedSemaphore.wait()
     }
 
     private func write(_ element: Element) {
