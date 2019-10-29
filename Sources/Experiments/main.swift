@@ -194,7 +194,7 @@ for step in 0..<10000 {
       }
       logger.info("║ \(task: name) ║ \(results.joined(separator: " ║ ")) ║")
     }
-    logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "─", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╝")
+    logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╝")
   }
 
   var losses = [String]()
