@@ -34,7 +34,7 @@ extension String.StringInterpolation {
   }
 
   mutating func appendInterpolation(metricValue value: Float) {
-    appendLiteral(String(format: "%2.2f", value * 100))
+    appendLiteral(String(format: "% 2.2f", value * 100))
   }
 
   mutating func appendInterpolation(loss value: Float) {
@@ -151,6 +151,7 @@ let taskInitializers: [() -> (String, Task)] = [
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   }]
+logger.info("Initializing tasks and loading their data in memory.")
 var tasks = taskInitializers.concurrentMap { $0() }
 
 var architecture = SimpleArchitecture(
@@ -177,9 +178,9 @@ var optimizer = WeightDecayedAdam(
   epsilon: 1e-6,
   maxGradientGlobalNorm: 1.0)
 
-logger.info("Training is starting...")
-for step in 1..<10000 {
-  if step % 50 == 0 || step == 1 {
+logger.info("Training.")
+for step in 0..<10000 {
+  if step % 50 == 0 {
     // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
     logger.info("╔\([String](repeating: "═", count: 89).joined())╗")
     logger.info("║\([String](repeating: " ", count: 34).joined())Step \(step: step) Evaluation\([String](repeating: " ", count: 34).joined())║")
@@ -192,9 +193,6 @@ for step in 1..<10000 {
         results.append("\([String](repeating: " ", count: 31).joined())│\([String](repeating: " ", count: 6).joined())")
       }
       logger.info("║ \(task: name) ║ \(results.joined(separator: " ║ ")) ║")
-      if taskIndex < tasks.count - 1 {
-        logger.info("╟\([String](repeating: "─", count: 7).joined())╫\([String](repeating: "─", count: 32).joined())┼\([String](repeating: "─", count: 7).joined())╫\([String](repeating: "─", count: 32).joined())┼\([String](repeating: "─", count: 7).joined())╢")
-      }
     }
     logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "─", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╝")
   }
