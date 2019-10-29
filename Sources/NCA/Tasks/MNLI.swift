@@ -150,7 +150,7 @@ extension MNLI {
       .shuffled(bufferSize: 1000)
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
@@ -160,7 +160,7 @@ extension MNLI {
     self.matchedDevDataIterator = matchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
@@ -170,7 +170,7 @@ extension MNLI {
     self.matchedTestDataIterator = matchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
@@ -180,7 +180,7 @@ extension MNLI {
     self.mismatchedDevDataIterator = mismatchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
@@ -190,7 +190,7 @@ extension MNLI {
     self.mismatchedTestDataIterator = mismatchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] % 10 },
+        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
