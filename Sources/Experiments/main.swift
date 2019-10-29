@@ -29,6 +29,14 @@ extension String.StringInterpolation {
     appendLiteral(value.padding(toLength: 5, withPad: " ", startingAt: 0))
   }
 
+  mutating func appendInterpolation(metricName value: String) {
+    appendLiteral(value.padding(toLength: 30, withPad: " ", startingAt: 0))
+  }
+
+  mutating func appendInterpolation(metricValue value: Float) {
+    appendLiteral(String(format: "%2.2f", value * 100))
+  }
+
   mutating func appendInterpolation(loss value: Float) {
     appendLiteral(String(format: "%.4f", value))
   }
@@ -171,17 +179,24 @@ var optimizer = WeightDecayedAdam(
 
 logger.info("Training is starting...")
 for step in 1..<10000 {
-  if step % 50 == 0 {
-    logger.info("================================================================================")
-    logger.info("Step \(step) Evaluation")
-    logger.info("================================================================================")
-    for (name, task) in tasks {
-      let results = task.evaluate(using: architecture)
-        .map { "\($0.key) = \($0.value)" }
-        .joined(separator: " | ")
-      logger.info("\(task: name) | \(results)")
+  if step % 50 == 0 || step == 1 {
+    // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
+    logger.info("╔\([String](repeating: "═", count: 89).joined())╗")
+    logger.info("║\([String](repeating: " ", count: 34).joined())Step \(step: step) Evaluation\([String](repeating: " ", count: 34).joined())║")
+    logger.info("╠\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 7).joined())╣")
+    for taskIndex in tasks.indices {
+      let (name, task) = tasks[taskIndex]
+      var results = task.evaluate(using: architecture)
+        .map { "\(metricName: $0.key) │ \(metricValue: $0.value)" }
+      if results.count < 2 {
+        results.append("\([String](repeating: " ", count: 31).joined())│\([String](repeating: " ", count: 6).joined())")
+      }
+      logger.info("║ \(task: name) ║ \(results.joined(separator: " ║ ")) ║")
+      if taskIndex < tasks.count - 1 {
+        logger.info("╟\([String](repeating: "─", count: 7).joined())╫\([String](repeating: "─", count: 32).joined())┼\([String](repeating: "─", count: 7).joined())╫\([String](repeating: "─", count: 32).joined())┼\([String](repeating: "─", count: 7).joined())╢")
+      }
     }
-    logger.info("================================================================================")
+    logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "─", count: 32).joined())╧\([String](repeating: "═", count: 7).joined())╝")
   }
 
   var losses = [String]()

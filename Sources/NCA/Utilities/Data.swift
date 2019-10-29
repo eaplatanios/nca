@@ -169,6 +169,7 @@ public struct GroupedIterator<Base: IteratorProtocol>: IteratorProtocol {
   private let reduceFn: ([Base.Element]) -> Base.Element
   private var iterator: Base
   private var groups: [Int: [Base.Element]]
+  private var currentGroup: Dictionary<Int, [Base.Element]>.Index? = nil
 
   public init(
     _ iterator: Base,
@@ -200,7 +201,16 @@ public struct GroupedIterator<Base: IteratorProtocol>: IteratorProtocol {
         break
       }
     }
-    guard let elementsToReduce = elements else { return nil }
+    guard let elementsToReduce = elements else {
+      if currentGroup == nil { currentGroup = groups.values.startIndex }
+      if currentGroup! >= groups.values.endIndex { return nil }
+      while groups.values[currentGroup!].isEmpty {
+        currentGroup = groups.values.index(after: currentGroup!)
+      }
+      let elementsToReduce = groups.values[currentGroup!]
+      currentGroup = groups.values.index(after: currentGroup!)
+      return reduceFn(elementsToReduce)
+    }
     return reduceFn(elementsToReduce)
   }
 }
@@ -261,10 +271,12 @@ extension PrefetchIterator {
             self.write(element)
           } else {
             self.depleted = true
+            self.readSemaphore.signal()
             self.deletedSemaphore.signal()
             break
           }
         }
+        self.readSemaphore.signal()
         self.deletedSemaphore.signal()
       }
     }
@@ -292,8 +304,8 @@ extension PrefetchIterator {
     internal func read() -> Element? {
       if self.depleted { return nil }
       readSemaphore.wait()
-      let element = dispatchQueue.sync { () -> Element in
-        let element = array[readIndex % array.count]!
+      let element = dispatchQueue.sync { () -> Element? in
+        let element = array[readIndex % array.count]
         array[readIndex % array.count] = nil
         readIndex += 1
         return element
