@@ -24,10 +24,6 @@ public struct SST: Task {
   public let maxSequenceLength: Int
   public let batchSize: Int
 
-  public let problem: Classification = Classification(
-    context: .sentiment,
-    concepts: [.negative, .positive])
-
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
   private typealias TrainDataIterator = PrefetchIterator<GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>>
@@ -44,11 +40,10 @@ public struct SST: Task {
   ) -> Float where O.Model == A {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
-    let problem = self.problem
-    let labels = batch.labels!
+    let labels = Tensor<Float>(batch.labels!)
     let (loss, gradient) = architecture.valueWithGradient {
-      softmaxCrossEntropy(
-        logits: $0.classify(input, problem: problem),
+      sigmoidCrossEntropy(
+        logits: $0.score(input, context: .inputScoring, concept: .positiveSentiment),
         labels: labels,
         reduction: { $0.mean() })
     }
@@ -62,8 +57,11 @@ public struct SST: Task {
     var devGroundTruth = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.classify(input, problem: problem)
-      let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
+      let predictions = architecture.score(
+        input,
+        context: .inputScoring,
+        concept: .positiveSentiment)
+      let predictedLabels = sigmoid(predictions) .>= 0.5
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
       devGroundTruth.append(contentsOf: batch.labels!.scalars.map { $0 == 1 })
     }

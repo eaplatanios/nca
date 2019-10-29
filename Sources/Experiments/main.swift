@@ -166,8 +166,9 @@ var tasks = taskInitializers.concurrentMap { $0() }
 
 var architecture = SimpleArchitecture(
   bertConfiguration: bertConfiguration,
+  contextEmbeddingSize: 32,
+  conceptEmbeddingSize: 32,
   hiddenSize: 1024,
-  contextEmbeddingSize: 16,
   reasoningHiddenSize: 1024)
 try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 

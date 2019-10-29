@@ -24,8 +24,6 @@ public struct STS: Task {
   public let maxSequenceLength: Int
   public let batchSize: Int
 
-  public let problem: Scoring = Scoring(context: .equivalence)
-
   private typealias ExampleIterator = IndexingIterator<Array<Example>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
   private typealias TrainDataIterator = PrefetchIterator<GroupedIterator<MapIterator<RepeatExampleIterator, DataBatch>>>
@@ -42,12 +40,11 @@ public struct STS: Task {
   ) -> Float where O.Model == A {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
-    let problem = self.problem
-    let labels = batch.labels!
+    let labels = Tensor<Float>(batch.labels!)
     let (loss, gradient) = architecture.valueWithGradient {
-      l2Loss(
-        predicted: $0.score(input, problem: problem),
-        expected: labels,
+      sigmoidCrossEntropy(
+        logits: $0.score(input, context: .inputScoring, concept: .equivalence),
+        labels: labels,
         reduction: { $0.mean() })
     }
     optimizer.update(&architecture, along: gradient)
@@ -60,8 +57,11 @@ public struct STS: Task {
     var devGroundTruth = [Float]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.score(input, problem: problem)
-      let predictedLabels = predictions * 5
+      let predictions = architecture.score(
+        input,
+        context: .inputScoring,
+        concept: .equivalence)
+      let predictedLabels = sigmoid(predictions) * 5
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
       devGroundTruth.append(contentsOf: (batch.labels! * 5).scalars)
     }

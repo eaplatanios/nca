@@ -17,60 +17,68 @@ import TensorFlow
 public protocol Architecture: KeyPathIterable, Regularizable
 where TangentVector: KeyPathIterable {
   @differentiable
-  func perceive(text: TextBatch, problem: Problem) -> Tensor<Float>
+  func perceive(text: TextBatch, context: Context) -> Tensor<Float>
 
   /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  func pool(text: TextBatch, perceivedText: Tensor<Float>, problem: Problem) -> Tensor<Float>
+  func pool(text: TextBatch, perceivedText: Tensor<Float>, context: Context) -> Tensor<Float>
 
   @differentiable
-  func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float>
+  func reason(over input: Tensor<Float>, context: Context) -> Tensor<Float>
 
   @differentiable
-  func classify(reasoningOutput: Tensor<Float>, problem: Classification) -> Tensor<Float>
+  func score(reasoningOutput: Tensor<Float>, concept: Concept) -> Tensor<Float>
 
   @differentiable
-  func label(reasoningOutput: Tensor<Float>, problem: Labeling) -> Tensor<Float>
+  func classify(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float>
 
   @differentiable
-  func score(reasoningOutput: Tensor<Float>) -> Tensor<Float>
+  func label(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float>
 }
 
 extension Architecture {
   @differentiable
-  public func classify(_ input: ArchitectureInput, problem: Classification) -> Tensor<Float> {
+  public func classify(
+    _ input: ArchitectureInput,
+    context: Context,
+    concepts: [Concept]
+  ) -> Tensor<Float> {
 // TODO: !!! Swift compiler AutoDiff bug.
 //    var latent = Tensor<Float>(zeros: [])
 //    if let text = input.text {
 //      latent += pool(
 //        text: text,
-//        perceivedText: perceive(text: text, problem: problem),
-//        problem: problem)
+//        perceivedText: perceive(text: text, context: context),
+//        context: context)
 //    }
     var latent = pool(
       text: input.text!,
-      perceivedText: perceive(text: input.text!, problem: problem),
-      problem: problem)
-    latent = reason(over: latent, problem: problem)
-    return classify(reasoningOutput: latent, problem: problem)
+      perceivedText: perceive(text: input.text!, context: context),
+      context: context)
+    latent = reason(over: latent, context: context)
+    return classify(reasoningOutput: latent, concepts: concepts)
   }
 
   @differentiable
-  public func score(_ input: ArchitectureInput, problem: Scoring) -> Tensor<Float> {
+  public func score(
+    _ input: ArchitectureInput,
+    context: Context,
+    concept: Concept
+  ) -> Tensor<Float> {
 // TODO: !!! Swift compiler AutoDiff bug.
 //    var latent = Tensor<Float>(zeros: [])
 //    if let text = input.text {
 //      latent += pool(
 //        text: text,
-//        perceivedText: perceive(text: text, problem: problem),
-//        problem: problem)
+//        perceivedText: perceive(text: text, context: context),
+//        context: context)
 //    }
     var latent = pool(
       text: input.text!,
-      perceivedText: perceive(text: input.text!, problem: problem),
-      problem: problem)
-    latent = reason(over: latent, problem: problem)
-    return score(reasoningOutput: latent)
+      perceivedText: perceive(text: input.text!, context: context),
+      context: context)
+    latent = reason(over: latent, context: context)
+    return score(reasoningOutput: latent, concept: concept)
   }
 }
 
@@ -83,53 +91,23 @@ public struct ArchitectureInput {
 }
 
 public enum Context: Int, CaseIterable {
-  case grammaticalCorrectness = 0
-  case paraphrasing = 1
-  case entailment = 2
-  case sentiment = 3
-  case equivalence = 4
+  case inputScoring = 0
 }
 
 public enum Concept: Int, CaseIterable {
-  case positive = 0
-  case negative = 1
-  case neutral = 2
-}
-
-public protocol Problem {
-  var context: Context { get }
-}
-
-public struct Classification: Problem {
-  public let context: Context
-  public let concepts: [Concept]
-
-  public init(context: Context, concepts: [Concept]) {
-    self.context = context
-    self.concepts = concepts
-  }
-}
-
-public struct Labeling: Problem {
-  public let context: Context
-  public let concepts: [Concept]
-
-  public init(context: Context, concepts: [Concept]) {
-    self.context = context
-    self.concepts = concepts
-  }
-}
-
-public struct Scoring: Problem {
-  public let context: Context
-
-  public init(context: Context) {
-    self.context = context
-  }
+  case grammaticalCorrectness = 0
+  case entailment = 1
+  case contradiction = 2
+  case neutral = 3
+  case positiveSentiment = 4
+  case negativeSentiment = 5
+  case paraphrasing = 6
+  case equivalence = 7
 }
 
 public struct SimpleArchitecture: Architecture {
   @noDerivative public let contextEmbeddingSize: Int
+  @noDerivative public let conceptEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
 
   public var contextEmbeddings: Tensor<Float>
@@ -140,7 +118,7 @@ public struct SimpleArchitecture: Architecture {
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
-  public var scoringDense: Affine<Float>
+  public var scoring: ContextualizedLayer<Affine<Float>, Linear<Float>>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -152,21 +130,23 @@ public struct SimpleArchitecture: Architecture {
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
       reasoning: reasoning.regularizationValue,
       reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue,
-      scoringDense: scoringDense.regularizationValue)
+      scoring: scoring.regularizationValue)
   }
 
   public init(
     bertConfiguration: BERT.Configuration,
-    hiddenSize: Int,
     contextEmbeddingSize: Int,
+    conceptEmbeddingSize: Int,
+    hiddenSize: Int,
     reasoningHiddenSize: Int
   ) {
-    self.hiddenSize = hiddenSize
     self.contextEmbeddingSize = contextEmbeddingSize
+    self.conceptEmbeddingSize = conceptEmbeddingSize
+    self.hiddenSize = hiddenSize
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
-    self.conceptEmbeddings = initializer([Concept.allCases.count, hiddenSize])
+    self.conceptEmbeddings = initializer([Concept.allCases.count, conceptEmbeddingSize])
     self.textPerception = BERT(configuration: bertConfiguration)
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
@@ -218,16 +198,22 @@ public struct SimpleArchitecture: Architecture {
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
-    self.scoringDense = Affine<Float>(
+    let scoringBase = Affine<Float>(
       inputSize: hiddenSize,
       outputSize: 1,
-      activation: sigmoid,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+    self.scoring = ContextualizedLayer(
+      base: scoringBase,
+      generator: Linear<Float>(
+        inputSize: conceptEmbeddingSize,
+        outputSize: scoringBase.parameterCount,
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
   }
 
   @differentiable
-  public func perceive(text: TextBatch, problem: Problem) -> Tensor<Float> {
+  public func perceive(text: TextBatch, context: Context) -> Tensor<Float> {
     textPerception(text)
   }
 
@@ -235,9 +221,9 @@ public struct SimpleArchitecture: Architecture {
   public func pool(
     text: TextBatch,
     perceivedText: Tensor<Float>,
-    problem: Problem
+    context: Context
   ) -> Tensor<Float> {
-    let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
+    let context = contextEmbeddings[context.rawValue].expandingShape(at: 0)
     let query = textPoolingQueryDense(context)
       .expandingShape(at: 0)
       .tiled(multiples: Tensor([Int32(perceivedText.shape[0]), 1, 1]))
@@ -252,35 +238,62 @@ public struct SimpleArchitecture: Architecture {
   }
 
   @differentiable
-  public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
-    let context = contextEmbeddings[problem.context.rawValue].expandingShape(at: 0)
+  public func reason(over input: Tensor<Float>, context: Context) -> Tensor<Float> {
+    let context = contextEmbeddings[context.rawValue].expandingShape(at: 0)
     let contextualizedInput = ContextualizedInput(input: input, context: context)
     // We are adding a skip connection here to help the training process.
     return reasoningLayerNormalization(input + reasoning(contextualizedInput))
   }
 
   @differentiable
-  public func classify(reasoningOutput: Tensor<Float>, problem: Classification) -> Tensor<Float> {
-    let conceptIds = withoutDerivative(at: problem.concepts) {
-      Tensor($0.map { Int32($0.rawValue) })
+  public func score(reasoningOutput: Tensor<Float>, concept: Concept) -> Tensor<Float> {
+    let concept = conceptEmbeddings[concept.rawValue].expandingShape(at: 0)
+    let contextualizedInput = ContextualizedInput(input: reasoningOutput, context: concept)
+    return scoring(contextualizedInput).squeezingShape(at: -1)
+  }
+
+  @differentiable(vjp: _vjpScore)
+  public func score(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
+    var scores = [Tensor<Float>]()
+    for concept in concepts {
+      scores.append(score(reasoningOutput: reasoningOutput, concept: concept))
     }
-    let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
-    let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
-    return logSoftmax(logits)
+    return Tensor(stacking: scores, alongAxis: -1)
+  }
+
+  @usableFromInline
+  internal func _vjpScore(
+    reasoningOutput: Tensor<Float>,
+    concepts: [Concept]
+  ) -> (Tensor<Float>, (Tensor<Float>) -> (TangentVector, Tensor<Float>)) {
+    var scores = [Tensor<Float>]()
+    var pullbacks = [(Tensor<Float>) -> (TangentVector, Tensor<Float>)]()
+    for concept in concepts {
+      let (score, pullback) = valueWithPullback(at: reasoningOutput) { architecture, input in
+        architecture.score(reasoningOutput: input, concept: concept)
+      }
+      scores.append(score)
+      pullbacks.append(pullback)
+    }
+    return (Tensor(stacking: scores, alongAxis: -1), { scoreGradient in
+      var architectureGradient = TangentVector.zero
+      var reasoningOutputGradient = Tensor<Float>.zero
+      for pullback in pullbacks {
+        let (aGradient, rGradient) = pullback(scoreGradient)
+        architectureGradient += aGradient
+        reasoningOutputGradient += rGradient
+      }
+      return (architectureGradient, reasoningOutputGradient)
+    })
   }
 
   @differentiable
-  public func label(reasoningOutput: Tensor<Float>, problem: Labeling) -> Tensor<Float> {
-    let conceptIds = withoutDerivative(at: problem.concepts) {
-      Tensor($0.map { Int32($0.rawValue) })
-    }
-    let classes = conceptEmbeddings.gathering(atIndices: conceptIds)
-    let logits = matmul(reasoningOutput, transposed: false, classes, transposed: true)
-    return logSigmoid(logits)
+  public func classify(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
+    logSoftmax(score(reasoningOutput: reasoningOutput, concepts: concepts))
   }
 
   @differentiable
-  public func score(reasoningOutput: Tensor<Float>) -> Tensor<Float> {
-    scoringDense(reasoningOutput).squeezingShape(at: -1)
+  public func label(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
+    logSigmoid(score(reasoningOutput: reasoningOutput, concepts: concepts))
   }
 }
