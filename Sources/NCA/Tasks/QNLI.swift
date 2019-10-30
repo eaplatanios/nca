@@ -128,7 +128,7 @@ extension QNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
-      .prefetched(count: 10)
+      .prefetched(count: 2)
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -138,7 +138,7 @@ extension QNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
-      .prefetched(count: 10)
+      .prefetched(count: 2)
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -148,7 +148,7 @@ extension QNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
         })
-      .prefetched(count: 10)
+      .prefetched(count: 2)
   }
 
   /// Converts an example to a data batch.
