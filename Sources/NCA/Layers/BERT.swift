@@ -514,18 +514,32 @@ extension BERT {
           .appendingPathComponent("variables")
           .appendingPathComponent("variables"))
       }
-      return model}
+      return model
+    }
 
     /// Downloads this pre-trained model to the specified directory, if it's not already there.
     public func maybeDownload(to directory: URL) throws {
-      // Download the model, if necessary.
-      let compressedFileURL = directory.appendingPathComponent("\(name).zip")
-      try NCA.maybeDownload(from: url, to: compressedFileURL)
+      switch self {
+      case .bertBase, .bertLarge:
+        // Download the model, if necessary.
+        let compressedFileURL = directory.appendingPathComponent("\(name).zip")
+        try NCA.maybeDownload(from: url, to: compressedFileURL)
 
-      // Extract the data, if necessary.
-      let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
-      if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-        try extract(zipFileAt: compressedFileURL, to: directory)
+        // Extract the data, if necessary.
+        let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
+        if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
+          try extract(zipFileAt: compressedFileURL, to: directory)
+        }
+      case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
+        // Download the model, if necessary.
+        let compressedFileURL = directory.appendingPathComponent("\(name).tar.gz")
+        try NCA.maybeDownload(from: url, to: compressedFileURL)
+
+        // Extract the data, if necessary.
+        let extractedDirectoryURL = directory.appendingPathComponent(name)
+        if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
+          try extract(tarGZippedFileAt: compressedFileURL, to: extractedDirectoryURL)
+        }
       }
     }
   }
