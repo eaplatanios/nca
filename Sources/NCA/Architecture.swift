@@ -27,16 +27,25 @@ where TangentVector: KeyPathIterable {
   func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float>
 
   @differentiable
-  func score(reasoningOutput: Tensor<Float>, concept: Concept) -> Tensor<Float>
-
-  @differentiable
-  func classify(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float>
-
-  @differentiable
-  func label(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float>
+  func score(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float>
 }
 
 extension Architecture {
+  @differentiable
+  public func score(reasoningOutput: Tensor<Float>, concepts: Concept...) -> Tensor<Float> {
+    score(reasoningOutput: reasoningOutput, concepts: concepts)
+  }
+
+  @differentiable
+  public func classify(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
+    logSoftmax(score(reasoningOutput: reasoningOutput, concepts: concepts))
+  }
+
+  @differentiable
+  public func label(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
+    logSigmoid(score(reasoningOutput: reasoningOutput, concepts: concepts))
+  }
+
   @differentiable
   public func classify(
     _ input: ArchitectureInput,
@@ -80,7 +89,7 @@ extension Architecture {
       perceivedText: perceive(text: input.text!),
       problem: problem)
     latent = reason(over: latent, problem: problem)
-    return score(reasoningOutput: latent, concept: concept)
+    return score(reasoningOutput: latent, concepts: concept).squeezingShape(at: -1)
   }
 }
 
@@ -126,7 +135,7 @@ public struct SimpleArchitecture: Architecture {
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
-  public var scoring: ContextualizedLayer<Affine<Float>, Linear<Float>>
+  public var reasoningToConceptDense: Affine<Float>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -140,7 +149,7 @@ public struct SimpleArchitecture: Architecture {
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
       reasoning: reasoning.regularizationValue,
       reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue,
-      scoring: scoring.regularizationValue)
+      reasoningToConceptDense: reasoningToConceptDense.regularizationValue)
   }
 
   public init(
@@ -218,18 +227,11 @@ public struct SimpleArchitecture: Architecture {
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
-    let scoringBase = Affine<Float>(
+    self.reasoningToConceptDense = Affine<Float>(
       inputSize: hiddenSize,
-      outputSize: 1,
+      outputSize: conceptEmbeddingSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
-    self.scoring = ContextualizedLayer(
-      base: scoringBase,
-      generator: Linear<Float>(
-        inputSize: conceptEmbeddingSize,
-        outputSize: scoringBase.parameterCount,
-        weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
   }
 
   public mutating func freezeTextPerception() {
@@ -282,59 +284,14 @@ public struct SimpleArchitecture: Architecture {
   public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = self.context(for: problem)
     let contextualizedInput = ContextualizedInput(input: input, context: context)
-    // We are adding a skip connection here to help the training process.
     return reasoningLayerNormalization(input + reasoning(contextualizedInput))
   }
 
   @differentiable
-  public func score(reasoningOutput: Tensor<Float>, concept: Concept) -> Tensor<Float> {
-    let concept = conceptEmbeddings[concept.rawValue].expandingShape(at: 0)
-    let contextualizedInput = ContextualizedInput(input: reasoningOutput, context: concept)
-    return scoring(contextualizedInput).squeezingShape(at: -1)
-  }
-
-  @differentiable(vjp: _vjpScore)
   public func score(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
-    var scores = [Tensor<Float>]()
-    for concept in concepts {
-      scores.append(score(reasoningOutput: reasoningOutput, concept: concept))
-    }
-    return Tensor(stacking: scores, alongAxis: -1)
-  }
-
-  @usableFromInline
-  internal func _vjpScore(
-    reasoningOutput: Tensor<Float>,
-    concepts: [Concept]
-  ) -> (Tensor<Float>, (Tensor<Float>) -> (TangentVector, Tensor<Float>)) {
-    var scores = [Tensor<Float>]()
-    var pullbacks = [(Tensor<Float>) -> (TangentVector, Tensor<Float>)]()
-    for concept in concepts {
-      let (score, pullback) = valueWithPullback(at: reasoningOutput) { architecture, input in
-        architecture.score(reasoningOutput: input, concept: concept)
-      }
-      scores.append(score)
-      pullbacks.append(pullback)
-    }
-    return (Tensor(stacking: scores, alongAxis: -1), { scoreGradient in
-      var architectureGradient = TangentVector.zero
-      var reasoningOutputGradient = Tensor<Float>.zero
-      for (pullback, scoreGradient) in zip(pullbacks, scoreGradient.unstacked(alongAxis: -1)) {
-        let (aGradient, rGradient) = pullback(scoreGradient)
-        architectureGradient += aGradient
-        reasoningOutputGradient += rGradient
-      }
-      return (architectureGradient, reasoningOutputGradient)
-    })
-  }
-
-  @differentiable
-  public func classify(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
-    logSoftmax(score(reasoningOutput: reasoningOutput, concepts: concepts))
-  }
-
-  @differentiable
-  public func label(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
-    logSigmoid(score(reasoningOutput: reasoningOutput, concepts: concepts))
+    let reasoning = reasoningToConceptDense(reasoningOutput)
+    let conceptIds = withoutDerivative(at: concepts) { Tensor($0.map { Int32($0.rawValue) }) }
+    let concepts = conceptEmbeddings.gathering(atIndices: conceptIds)
+    return matmul(reasoning, transposed: false, concepts, transposed: true)
   }
 }
