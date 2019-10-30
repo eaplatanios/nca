@@ -155,7 +155,7 @@ extension MRPC {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels }))
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -165,7 +165,7 @@ extension MRPC {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels }))
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -175,7 +175,7 @@ extension MRPC {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels }))
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
   }
 
   /// Converts an example to a data batch.

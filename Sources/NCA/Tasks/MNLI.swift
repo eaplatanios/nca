@@ -160,7 +160,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
     self.matchedDevDataIterator = matchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -170,7 +170,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
     self.matchedTestDataIterator = matchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -180,7 +180,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
     self.mismatchedDevDataIterator = mismatchedDevExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -190,7 +190,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: Tensor.batch($0.map { $0.labels! }))
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
     self.mismatchedTestDataIterator = mismatchedTestExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
@@ -200,7 +200,7 @@ extension MNLI {
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
           labels: nil)
         })
-      .prefetched(count: 2)
+      .prefetched(count: 10)
   }
 
   /// Converts an example to a data batch.
