@@ -120,7 +120,7 @@ public struct SimpleArchitecture: Architecture {
   public var conceptEmbeddings: Tensor<Float>
   public var conceptToContextDense: Affine<Float>
   public var contextConceptCombiner: Affine<Float>
-  public var textPerception: BERT
+  @Freezable public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
@@ -134,7 +134,7 @@ public struct SimpleArchitecture: Architecture {
       conceptEmbeddings: conceptEmbeddings,
       conceptToContextDense: conceptToContextDense.regularizationValue,
       contextConceptCombiner: contextConceptCombiner.regularizationValue,
-      textPerception: textPerception.regularizationValue,
+      _textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
@@ -167,7 +167,7 @@ public struct SimpleArchitecture: Architecture {
       outputSize: contextEmbeddingSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
-    self.textPerception = BERT(configuration: bertConfiguration)
+    self._textPerception = Freezable(wrappedValue: BERT(configuration: bertConfiguration))
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
       outputSize: bertConfiguration.hiddenSize,
@@ -230,6 +230,14 @@ public struct SimpleArchitecture: Architecture {
         outputSize: scoringBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+  }
+
+  public mutating func freezeTextPerception() {
+    _textPerception.frozen = true
+  }
+
+  public mutating func unfreezeTextPerception() {
+    _textPerception.frozen = false
   }
 
   @differentiable

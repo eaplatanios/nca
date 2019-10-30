@@ -71,6 +71,8 @@ let vocabularyURL = bertDir
 let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
 let bertConfiguration = try! BERT.Configuration(fromFile: bertConfigurationURL)
 
+let useCurriculum = true
+
 // let albertDir = modulesDir
 //   .appendingPathComponent("text")
 //   .appendingPathComponent("albert")
@@ -189,55 +191,73 @@ var optimizer = WeightDecayedAdam(
   epsilon: 1e-6,
   maxGradientGlobalNorm: 1.0)
 
+architecture.freezeTextPerception()
+
 logger.info("Training.")
-var maxDifferences = [Float](repeating: -Float.infinity, count: tasks.count)
-var minDifferences = [Float](repeating: -Float.infinity, count: tasks.count)
-var differences = [Float](repeating: -Float.infinity, count: tasks.count)
 var losses = [Float](repeating: 0, count: tasks.count)
+var minLosses = [Float](repeating: 0, count: tasks.count)
+var lastUpdate = [Int](repeating: 0, count: tasks.count)
+var updateCounts = [Int](repeating: 0, count: tasks.count)
 for step in 1..<10000 {
-  if step == 1 {
+  if step > 1000 {
+    architecture.unfreezeTextPerception()
+    optimizer.step = 0
+  }
+  if useCurriculum && step == 1 {
+    for taskIndex in tasks.indices {
+      losses[taskIndex] = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
+      minLosses[taskIndex] = losses[taskIndex]
+      updateCounts[taskIndex] += 1
+    }
+    let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
+    logger.info("\(step: step) | \(message)")
+  } else if useCurriculum {
+    let taskIndex = { () -> Int in
+      var scores = zip(losses, minLosses).map { $0 - $1 }
+      let minScore = scores.reduce(Float.infinity, min)
+      let maxScore = scores.reduce(-Float.infinity, max)
+      scores = scores.map { ($0 - minScore) / (maxScore - minScore) }
+      scores = zip(scores, lastUpdate).map { $0 + Float(step - $1) * 0.001 }
+      let scoresSum = scores.reduce(0, +)
+      if let random = scoresSum == 0 || maxScore == minScore ? nil : Float.random(in: 0..<scoresSum) {
+        var accumulator = Float(0)
+        for (index, score) in scores.enumerated() {
+          accumulator += score
+          if random < accumulator {
+            return index
+          }
+        }
+        return scores.count - 1
+      } else {
+        return Int.random(in: 0..<scores.count)
+      }
+    }()
+    let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
+    losses[taskIndex] = loss
+    minLosses[taskIndex] = min(loss, minLosses[taskIndex])
+    lastUpdate[taskIndex] = step
+    updateCounts[taskIndex] += 1
+    let message = zip(tasks, losses).enumerated().map {
+      "\(task: $0 == taskIndex ? ("*" + $1.0.0) : $1.0.0): \(loss: $1.1)"
+    }.joined(separator: " | ")
+    logger.info("\(step: step) | \(message)")
+    if step % 100 == 0 {
+      let totalUpdateCount = Float(updateCounts.reduce(0, +))
+      let message = zip(tasks, updateCounts).map {
+        "\(task: $0.0): \(metricValue: Float($1) / totalUpdateCount)"
+      }.joined(separator: " | ")
+      logger.info("\(step: step) | \(message)")
+    }
+  } else {
     for taskIndex in tasks.indices {
       losses[taskIndex] = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
     }
     let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
-    logger.info("\(message)")
-  } else if step == 2 {
-    for taskIndex in tasks.indices {
-      let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
-      let difference = losses[taskIndex] - loss
-      maxDifferences[taskIndex] = difference
-      minDifferences[taskIndex] = difference
-      differences[taskIndex] = difference
-      losses[taskIndex] = difference
-    }
-    let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
-    logger.info("\(message)")
-  } else {
-    let taskIndex = { () -> Int in
-      let scores = zip(differences, zip(minDifferences, maxDifferences)).map { ($0 - $1.0) / $1.1 }
-      let scoresSum = scores.reduce(0, +)
-      let random = Float.random(in: 0..<scoresSum)
-      var accumulator = Float(0)
-      for (index, score) in scores.enumerated() {
-        accumulator += score
-        if random < accumulator {
-          return index
-        }
-      }
-      return scores.count - 1
-    }()
-    let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
-    let difference = losses[taskIndex] - loss
-    maxDifferences[taskIndex] = max(difference, maxDifferences[taskIndex])
-    minDifferences[taskIndex] = min(difference, minDifferences[taskIndex])
-    differences[taskIndex] = difference
-    losses[taskIndex] = difference
-    let message = zip(tasks, losses).enumerated().map {
-      "\(task: $0 == taskIndex ? ("*" + $1.0.0) : $1.0.0): \(loss: $1.1)"
-    }.joined(separator: " | ")
-    logger.info("\(message)")
+    logger.info("\(step: step) | \(message)")
   }
-  if step % 50 == 0 {
+
+  // Evaluation
+  if step % 500 == 0 {
     // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
     logger.info("╔\([String](repeating: "═", count: 91).joined())╗")
     logger.info("║\([String](repeating: " ", count: 35).joined())\(step: step) Evaluation\([String](repeating: " ", count: 35).joined())║")

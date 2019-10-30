@@ -263,7 +263,7 @@ public struct BasicTextTokenizer: TextTokenizer {
 public struct SubwordTokenizer: TextTokenizer {
   public let vocabulary: Vocabulary
   public let unknownToken: String
-  public let maxTokenLength: Int
+  public let maxTokenLength: Int?
 
   /// Creates a subword tokenizer.
   ///
@@ -272,7 +272,7 @@ public struct SubwordTokenizer: TextTokenizer {
   ///   - unknownToken: Token used to represent unknown tokens (i.e., tokens that are not in the
   ///     provided vocabulary or whose length is longer than `maxTokenLength`).
   ///   - maxTokenLength: Maximum allowed token length.
-  public init(vocabulary: Vocabulary, unknownToken: String = "[UNK]", maxTokenLength: Int) {
+  public init(vocabulary: Vocabulary, unknownToken: String = "[UNK]", maxTokenLength: Int?) {
     self.vocabulary = vocabulary
     self.unknownToken = unknownToken
     self.maxTokenLength = maxTokenLength
@@ -280,7 +280,7 @@ public struct SubwordTokenizer: TextTokenizer {
 
   public func tokenize(_ text: String) -> [String] {
     clean(text).split(separator: " ").flatMap { token -> [String] in
-      if token.count > maxTokenLength { return [unknownToken] }
+      if let maxLength = maxTokenLength, token.count > maxLength { return [unknownToken] }
       var isBad = false
       var start = token.startIndex
       var subTokens = [String]()
@@ -313,6 +313,36 @@ public struct SubwordTokenizer: TextTokenizer {
       return isBad ? [unknownToken] : subTokens
     }
   }
+
+//  internal func encode(token: String) -> [String] {
+//    if let maxLength = maxTokenLength, token.count > maxLength { return [unknownToken] }
+//    let parts = splitWithDelimiters(token: token, glossaryRegex: defaultGlossaryRegex)
+//    if parts.count < 2 { return parts }
+//    var pairs = (0..<parts.count - 1).map { index in (parts[index], parts[index + 1]) }
+//    var finished = false
+//    while !pairs.isEmpty && !finished {
+//      let pair =
+//    }
+//
+//
+//  }
+//
+//  internal let defaultGlossary: [String] = [
+//    "e.g", "i.e", "&amp;", "&#124;", "&lt;", "&gt;", "&apos;", "&quot;", "&#91;", "&#93;"]
+//
+//  internal let defaultGlossaryRegex: NSRegularExpression = {
+//    let escapedGlossary = defaultGlossary.map { "\\Q\($0)\\E" }.joined(separator: "|")
+//    return try! NSRegularExpression(pattern: "(?:\(escapedGlossary))|(?!\(escapedGlossary))")
+//  }
+//
+//  internal func splitWithDelimiters(
+//    token: String,
+//    glossaryRegex: NSRegularExpression,
+//    keepEmpty: Bool = false
+//  ) -> [String] {
+//    let parts = glossaryRegex.matches(in: token, range: NSRange(token.startIndex..., in: token))
+//    return parts.compactMap { Range($0.range, in: token).map { String(token[$0]) } }
+//  }
 }
 
 /// Full text tokenizer that is simply defined as the composition of the basic text tokenizer and
