@@ -90,35 +90,42 @@ let textTokenizer = FullTextTokenizer(
   maxTokenLength: bertConfiguration.maxSequenceLength)
 
 let maxSequenceLength = 128 // bertConfiguration.maxSequenceLength
+
+let race = try! RACE(
+  taskDirectoryURL: tasksDir,
+  textTokenizer: textTokenizer,
+  maxSequenceLength: maxSequenceLength,
+  batchSize: 1024)
+
 let taskInitializers: [() -> (String, Task)] = [
-  { () in
-    ("MRPC", try! MRPC(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("CoLA", try! CoLA(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("RTE", try! RTE(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("SST", try! SST(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
+//  { () in
+//    ("MRPC", try! MRPC(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("CoLA", try! CoLA(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("RTE", try! RTE(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("SST", try! SST(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
   { () in
     ("STS", try! STS(
       taskDirectoryURL: tasksDir,
@@ -126,41 +133,42 @@ let taskInitializers: [() -> (String, Task)] = [
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
-  { () in
-    ("QNLI", try! QNLI(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("WNLI", try! WNLI(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("SNLI", try! SNLI(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("MNLI", try! MNLI(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  },
-  { () in
-    ("QQP", try! QQP(
-      taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
-      maxSequenceLength: maxSequenceLength,
-      batchSize: 1024))
-  }]
+//  { () in
+//    ("QNLI", try! QNLI(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("WNLI", try! WNLI(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("SNLI", try! SNLI(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("MNLI", try! MNLI(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  },
+//  { () in
+//    ("QQP", try! QQP(
+//      taskDirectoryURL: tasksDir,
+//      textTokenizer: textTokenizer,
+//      maxSequenceLength: maxSequenceLength,
+//      batchSize: 1024))
+//  }
+]
 logger.info("Initializing tasks and loading their data in memory.")
 var tasks = taskInitializers.concurrentMap { $0() }
 
@@ -190,7 +198,48 @@ var optimizer = WeightDecayedAdam(
   maxGradientGlobalNorm: 1.0)
 
 logger.info("Training.")
-for step in 0..<10000 {
+var maxDifferences = [Float](repeating: -Float.infinity, count: tasks.count)
+var differences = [Float](repeating: -Float.infinity, count: tasks.count)
+var losses = [Float](repeating: 0, count: tasks.count)
+for step in 1..<10000 {
+  if step == 1 {
+    for taskIndex in tasks.indices {
+      losses[taskIndex] = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
+    }
+    let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
+    logger.info("\(message)")
+  } else if step == 2 {
+    for taskIndex in tasks.indices {
+      let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
+      let difference = losses[taskIndex] - loss
+      maxDifferences[taskIndex] = difference
+      differences[taskIndex] = difference
+    }
+    let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
+    logger.info("\(message)")
+  } else {
+    let taskIndex = { () -> Int in
+      let scores = zip(differences, maxDifferences).map { $0 / $1 }
+      let scoresSum = scores.reduce(0, +)
+      let random = Float.random(in: 0..<scoresSum)
+      var accumulator = Float(0)
+      for (index, score) in scores.enumerated() {
+        accumulator += score
+        if random < accumulator {
+          return index
+        }
+      }
+      return scores.count - 1
+    }()
+    let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
+    let difference = losses[taskIndex] - loss
+    maxDifferences[taskIndex] = max(difference, maxDifferences[taskIndex])
+    differences[taskIndex] = difference
+    let message = zip(tasks, losses).enumerated().map {
+      "\(task: $0 == taskIndex ? ("*" + $1.0.0) : $1.0.0): \(loss: $1.1)"
+    }.joined(separator: " | ")
+    logger.info("\(message)")
+  }
   if step % 50 == 0 {
     // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
     logger.info("╔\([String](repeating: "═", count: 91).joined())╗")
@@ -209,13 +258,4 @@ for step in 0..<10000 {
     }
     logger.info("╚\([String](repeating: "═", count: 7).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 8).joined())╩\([String](repeating: "═", count: 32).joined())╧\([String](repeating: "═", count: 8).joined())╝")
   }
-
-  var losses = [String]()
-  losses.reserveCapacity(tasks.count)
-  for taskIndex in tasks.indices {
-    let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
-    losses.append("\(task: tasks[taskIndex].0): \(loss: loss)")
-  }
-
-  logger.info("\(step: step) | \(losses.joined(separator: " | "))")
 }

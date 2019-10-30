@@ -338,7 +338,7 @@ internal func maybeDownload(from url: URL, to destination: URL) throws {
     // Create the URL session that will be used to download the dataset.
     let semaphore = DispatchSemaphore(value: 0)
     let delegate = DataDownloadDelegate(destinationFileUrl: destination, semaphore: semaphore)
-    let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+    let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
 
     // Download the data to a temporary file and then copy that file to
     // the destination path.
