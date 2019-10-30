@@ -29,6 +29,34 @@ public protocol Serializable {
   func save(toFile fileURL: URL) throws
 }
 
+/// A wrapper around a differentiable value with "freezable" derivatives.
+///
+/// When `isFrozen` is true, accesses to `value` have a derivative of zero.
+@propertyWrapper
+public struct Freezable<Value: Differentiable> : Differentiable {
+  @noDerivative public var frozen: Bool = false
+  public var _wrappedValue: Value
+
+  public init(wrappedValue: Value) {
+    _wrappedValue = wrappedValue
+  }
+
+  @differentiable(vjp: _vjpValue)
+  public var wrappedValue: Value {
+    get { _wrappedValue }
+    set { _wrappedValue = newValue }
+  }
+
+  @usableFromInline
+  func _vjpValue() -> (value: Value, pullback: (Value.TangentVector) -> TangentVector) {
+    (_wrappedValue, { [frozen = self.frozen] v in frozen ? .zero : v })
+  }
+
+  public mutating func move(along direction: Value.TangentVector) {
+    if !frozen { _wrappedValue.move(along: direction) }
+  }
+}
+
 extension Array {
   // TODO: [DOC] Add documentation.
   public func concurrentMap<B>(_ transform: @escaping (Element) -> B) -> [B] {
