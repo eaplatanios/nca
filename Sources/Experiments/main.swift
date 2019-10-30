@@ -191,6 +191,7 @@ var optimizer = WeightDecayedAdam(
 
 logger.info("Training.")
 var maxDifferences = [Float](repeating: -Float.infinity, count: tasks.count)
+var minDifferences = [Float](repeating: -Float.infinity, count: tasks.count)
 var differences = [Float](repeating: -Float.infinity, count: tasks.count)
 var losses = [Float](repeating: 0, count: tasks.count)
 for step in 1..<10000 {
@@ -205,13 +206,15 @@ for step in 1..<10000 {
       let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
       let difference = losses[taskIndex] - loss
       maxDifferences[taskIndex] = difference
+      minDifferences[taskIndex] = difference
       differences[taskIndex] = difference
+      losses[taskIndex] = difference
     }
     let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
     logger.info("\(message)")
   } else {
     let taskIndex = { () -> Int in
-      let scores = zip(differences, maxDifferences).map { $0 / $1 }
+      let scores = zip(differences, zip(minDifferences, maxDifferences)).map { ($0 - $1.0) / $1.1 }
       let scoresSum = scores.reduce(0, +)
       let random = Float.random(in: 0..<scoresSum)
       var accumulator = Float(0)
@@ -226,7 +229,9 @@ for step in 1..<10000 {
     let loss = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
     let difference = losses[taskIndex] - loss
     maxDifferences[taskIndex] = max(difference, maxDifferences[taskIndex])
+    minDifferences[taskIndex] = min(difference, minDifferences[taskIndex])
     differences[taskIndex] = difference
+    losses[taskIndex] = difference
     let message = zip(tasks, losses).enumerated().map {
       "\(task: $0 == taskIndex ? ("*" + $1.0.0) : $1.0.0): \(loss: $1.1)"
     }.joined(separator: " | ")
