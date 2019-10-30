@@ -30,16 +30,10 @@ public struct TextBatch: KeyPathIterable {
   public var mask: Tensor<Int32> // TODO: !!! Mutable in order to allow for batching.
 }
 
-/// Tokenized text passage.
-public struct TokenizedText {
-  /// IDs that correspond to the vocabulary used while tokenizing.
-  public let tokenIds: [Int]
-
-  /// IDs of the token types (e.g., sentence A and sentence B in BERT).
-  public let tokenTypeIds: [Int]
-
-  /// Mask over the sequence of tokens specifying which ones are "real" as opposed to "padding".
-  public let mask: [Bool]
+public protocol TextPerceptionModule: Module, Regularizable
+where Input == TextBatch, Output == Tensor<Scalar> {
+  associatedtype Scalar: TensorFlowFloatingPoint
+  func preprocess(sequences: [String], maxSequenceLength: Int?) -> TextBatch
 }
 
 /// Returns a 3-D attention mask that correspond to the 2-D mask of the provided text batch.
@@ -63,85 +57,29 @@ public func createAttentionMask(forTextBatch text: TextBatch) -> Tensor<Float> {
   return broadcastOnes * reshapedMask
 }
 
-/// Preprocesses an array of text sequences and prepares them for use by a text perception
-/// module. Preprocessing mainly consists of tokenization.
-///
-/// - Parameters:
-///   - sequences: Text sequences (not tokenized).
-///   - maxSequenceLength: Maximum sequence length supported by the text perception module. This
-///     is mainly used for padding the preprocessed sequences.
-///   - tokenizer: Tokenizer to use while preprocessing.
-///
-/// - Returns: Tokenized text.
-public func preprocessText(
-  sequences: [String],
-  maxSequenceLength: Int,
-  usingTokenizer tokenizer: FullTextTokenizer
-) -> TokenizedText {
-  var sequences = sequences.map(tokenizer.tokenize)
-
-  // Truncate the sequences based on the maximum allowed sequence length, while accounting for
-  // the '[CLS]' token and for `sequences.count` '[SEP]' tokens. The following is a simple
-  // heuristic which will truncate the longer sequence one token at a time. This makes more sense
-  // than truncating an equal percent of tokens from each sequence, since if one sequence is very
-  // short then each token that is truncated likely contains more information than respective
-  // tokens in longer sequences.
-  var totalLength = sequences.map { $0.count }.reduce(0, +)
-  while totalLength >= maxSequenceLength - 1 - sequences.count {
-    let maxIndex = sequences.enumerated().max(by: { $0.1.count < $1.1.count })!.0
-    sequences[maxIndex] = [String](sequences[maxIndex].dropLast())
-    totalLength = sequences.map { $0.count }.reduce(0, +)
-  }
-
-  // The convention in BERT is:
-  //   (a) For sequence pairs:
-  //       tokens:       [CLS] is this jack ##son ##ville ? [SEP] no it is not . [SEP]
-  //       tokenTypeIds: 0     0  0    0    0     0       0 0     1  1  1  1   1 1
-  //   (b) For single sequences:
-  //       tokens:       [CLS] the dog is hairy . [SEP]
-  //       tokenTypeIds: 0     0   0   0  0     0 0
-  // where "tokenTypeIds" are used to indicate whether this is the first sequence or the second
-  // sequence. The embedding vectors for `tokenTypeId = 0` and `tokenTypeId = 1` were learned
-  // during pre-training and are added to the WordPiece embedding vector (and position vector).
-  // This is not *strictly* necessary since the [SEP] token unambiguously separates the
-  // sequences. However, it makes it easier for the model to learn the concept of sequences.
-  //
-  // For classification tasks, the first vector (corresponding to `[CLS]`) is used as the
-  // "sentence embedding". Note that this only makes sense because the entire model is fine-tuned
-  // under this assumption.
-  var tokens = ["[CLS]"]
-  var tokenTypeIds = [0]
-  for (sequenceId, sequence) in sequences.enumerated() {
-    for token in sequence {
-      tokens.append(token)
-      tokenTypeIds.append(sequenceId)
-    }
-    tokens.append("[SEP]")
-    tokenTypeIds.append(sequenceId)
-  }
-  let tokenIds = tokens.map { tokenizer.vocabulary.tokensToIds[$0]! }
-
-  // The mask is set to `true` for real tokens and `false` for padding tokens. This is so that
-  // only real tokens are attended to.
-  let mask = [Bool](repeating: true, count: tokenIds.count)
-
-  return TokenizedText(tokenIds: tokenIds, tokenTypeIds: tokenTypeIds, mask: mask)
-}
-
 // TODO: !!! Add documentation.
 public func padAndBatch(textBatches: [TextBatch]) -> TextBatch {
-  let maxLength = textBatches.map { $0.tokenIds.shape[0] }.max()!
+  let maxLength = textBatches.map { $0.tokenIds.shape[1] }.max()!
   let paddedBatches = textBatches.map { batch -> TextBatch in
-    let paddingSize = maxLength - batch.tokenIds.shape[0]
+    let paddingSize = maxLength - batch.tokenIds.shape[1]
     return TextBatch(
-      tokenIds: batch.tokenIds.padded(forSizes: [(before: 0, after: paddingSize)]),
-      tokenTypeIds: batch.tokenTypeIds.padded(forSizes: [(before: 0, after: paddingSize)]),
-      mask: batch.mask.padded(forSizes: [(before: 0, after: paddingSize)]))
+      tokenIds: batch.tokenIds.padded(forSizes: [
+        (before: 0, after: 0),
+        (before: 0, after: paddingSize)]),
+      tokenTypeIds: batch.tokenTypeIds.padded(forSizes: [
+        (before: 0, after: 0),
+        (before: 0, after: paddingSize)]),
+      mask: batch.mask.padded(forSizes: [
+        (before: 0, after: 0),
+        (before: 0, after: paddingSize)]))
   }
   return TextBatch(
-    tokenIds: Tensor<Int32>(stacking: paddedBatches.map { $0.tokenIds }, alongAxis: 0),
-    tokenTypeIds: Tensor<Int32>(stacking: paddedBatches.map { $0.tokenTypeIds }, alongAxis: 0),
-    mask: Tensor<Int32>(stacking: paddedBatches.map { $0.mask }, alongAxis: 0))
+    tokenIds: Tensor<Int32>(
+      concatenating: paddedBatches.map { $0.tokenIds }, alongAxis: 0),
+    tokenTypeIds: Tensor<Int32>(
+      concatenating: paddedBatches.map { $0.tokenTypeIds }, alongAxis: 0),
+    mask: Tensor<Int32>(
+      concatenating: paddedBatches.map { $0.mask }, alongAxis: 0))
 }
 
 /// Vocabulary that can be used for tokenizing strings.
@@ -313,36 +251,6 @@ public struct SubwordTokenizer: TextTokenizer {
       return isBad ? [unknownToken] : subTokens
     }
   }
-
-//  internal func encode(token: String) -> [String] {
-//    if let maxLength = maxTokenLength, token.count > maxLength { return [unknownToken] }
-//    let parts = splitWithDelimiters(token: token, glossaryRegex: defaultGlossaryRegex)
-//    if parts.count < 2 { return parts }
-//    var pairs = (0..<parts.count - 1).map { index in (parts[index], parts[index + 1]) }
-//    var finished = false
-//    while !pairs.isEmpty && !finished {
-//      let pair =
-//    }
-//
-//
-//  }
-//
-//  internal let defaultGlossary: [String] = [
-//    "e.g", "i.e", "&amp;", "&#124;", "&lt;", "&gt;", "&apos;", "&quot;", "&#91;", "&#93;"]
-//
-//  internal let defaultGlossaryRegex: NSRegularExpression = {
-//    let escapedGlossary = defaultGlossary.map { "\\Q\($0)\\E" }.joined(separator: "|")
-//    return try! NSRegularExpression(pattern: "(?:\(escapedGlossary))|(?!\(escapedGlossary))")
-//  }
-//
-//  internal func splitWithDelimiters(
-//    token: String,
-//    glossaryRegex: NSRegularExpression,
-//    keepEmpty: Bool = false
-//  ) -> [String] {
-//    let parts = glossaryRegex.matches(in: token, range: NSRange(token.startIndex..., in: token))
-//    return parts.compactMap { Range($0.range, in: token).map { String(token[$0]) } }
-//  }
 }
 
 /// Full text tokenizer that is simply defined as the composition of the basic text tokenizer and
@@ -351,7 +259,7 @@ public struct FullTextTokenizer: TextTokenizer {
   public let caseSensitive: Bool
   public let vocabulary: Vocabulary
   public let unknownToken: String
-  public let maxTokenLength: Int
+  public let maxTokenLength: Int?
 
   private let basicTextTokenizer: BasicTextTokenizer
   private let subwordTokenizer: SubwordTokenizer
@@ -368,7 +276,7 @@ public struct FullTextTokenizer: TextTokenizer {
     caseSensitive: Bool = false,
     vocabulary: Vocabulary,
     unknownToken: String = "[UNK]",
-    maxTokenLength: Int = 200
+    maxTokenLength: Int? = nil
   ) {
     self.caseSensitive = caseSensitive
     self.vocabulary = vocabulary

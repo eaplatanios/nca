@@ -16,6 +16,10 @@ import TensorFlow
 
 public protocol Architecture: KeyPathIterable, Regularizable
 where TangentVector: KeyPathIterable {
+  associatedtype TextPerception: TextPerceptionModule
+
+  var textPerception: TextPerception { get set }
+
   @differentiable
   func perceive(text: TextBatch) -> Tensor<Float>
 
@@ -31,6 +35,10 @@ where TangentVector: KeyPathIterable {
 }
 
 extension Architecture {
+  public func preprocess(sequences: [String], maxSequenceLength: Int?) -> TextBatch {
+    textPerception.preprocess(sequences: sequences, maxSequenceLength: maxSequenceLength)
+  }
+
   @differentiable
   public func score(reasoningOutput: Tensor<Float>, concepts: Concept...) -> Tensor<Float> {
     score(reasoningOutput: reasoningOutput, concepts: concepts)
@@ -129,7 +137,7 @@ public struct SimpleArchitecture: Architecture {
   public var conceptEmbeddings: Tensor<Float>
   public var conceptToContextDense: Affine<Float>
   public var contextConceptCombiner: Affine<Float>
-  @Freezable public var textPerception: BERT
+  public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
@@ -143,7 +151,7 @@ public struct SimpleArchitecture: Architecture {
       conceptEmbeddings: conceptEmbeddings,
       conceptToContextDense: conceptToContextDense.regularizationValue,
       contextConceptCombiner: contextConceptCombiner.regularizationValue,
-      _textPerception: textPerception.regularizationValue,
+      textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
@@ -153,7 +161,7 @@ public struct SimpleArchitecture: Architecture {
   }
 
   public init(
-    bertConfiguration: BERT.Configuration,
+    textPerception: BERT,
     contextEmbeddingSize: Int,
     conceptEmbeddingSize: Int,
     hiddenSize: Int,
@@ -163,67 +171,67 @@ public struct SimpleArchitecture: Architecture {
     self.conceptEmbeddingSize = conceptEmbeddingSize
     self.hiddenSize = hiddenSize
     let initializer = truncatedNormalInitializer(
-      standardDeviation: Tensor<Float>(bertConfiguration.initializerStandardDeviation))
+      standardDeviation: Tensor<Float>(textPerception.initializerStandardDeviation))
     self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
     self.conceptEmbeddings = initializer([Concept.allCases.count, conceptEmbeddingSize])
     self.conceptToContextDense = Affine<Float>(
       inputSize: conceptEmbeddingSize,
       outputSize: contextEmbeddingSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
     self.contextConceptCombiner = Affine<Float>(
       inputSize: 2 * contextEmbeddingSize,
       outputSize: contextEmbeddingSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
-    self._textPerception = Freezable(wrappedValue: BERT(configuration: bertConfiguration))
+        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
+    self.textPerception = textPerception
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: contextEmbeddingSize,
-      outputSize: bertConfiguration.hiddenSize,
+      outputSize: textPerception.hiddenSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
     self.textPoolingMultiHeadAttention = MultiHeadAttention(
-      sourceSize: bertConfiguration.hiddenSize,
-      targetSize: bertConfiguration.hiddenSize,
-      headCount: bertConfiguration.attentionHeadCount,
-      headSize: bertConfiguration.hiddenSize / bertConfiguration.attentionHeadCount,
+      sourceSize: textPerception.hiddenSize,
+      targetSize: textPerception.hiddenSize,
+      headCount: textPerception.attentionHeadCount,
+      headSize: textPerception.hiddenSize / textPerception.attentionHeadCount,
       queryActivation: { $0 },
       keyActivation: { $0 },
       valueActivation: { $0 },
-      attentionDropoutProbability: bertConfiguration.attentionDropoutProbability,
+      attentionDropoutProbability: textPerception.attentionDropoutProbability,
       matrixResult: true)
     let textPoolingOutputDenseBase = Affine<Float>(
-      inputSize: bertConfiguration.hiddenSize,
+      inputSize: textPerception.hiddenSize,
       outputSize: hiddenSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
+        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
     self.textPoolingOutputDense = ContextualizedLayer(
       base: textPoolingOutputDenseBase,
       generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: textPoolingOutputDenseBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
     let reasoningBase = Sequential(
       Affine<Float>(
         inputSize: hiddenSize,
         outputSize: reasoningHiddenSize,
-        activation: bertConfiguration.intermediateActivation.activationFunction(),
+        activation: textPerception.intermediateActivation,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))),
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation))),
       Affine<Float>(
         inputSize: reasoningHiddenSize,
         outputSize: hiddenSize,
-        activation: bertConfiguration.intermediateActivation.activationFunction(),
+        activation: textPerception.intermediateActivation,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
       generator: Linear<Float>(
         inputSize: contextEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation))))
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
     self.reasoningLayerNormalization = LayerNormalization<Float>(
       featureCount: hiddenSize,
       axis: -1)
@@ -231,15 +239,7 @@ public struct SimpleArchitecture: Architecture {
       inputSize: hiddenSize,
       outputSize: conceptEmbeddingSize,
       weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(bertConfiguration.initializerStandardDeviation)))
-  }
-
-  public mutating func freezeTextPerception() {
-    _textPerception.frozen = true
-  }
-
-  public mutating func unfreezeTextPerception() {
-    _textPerception.frozen = false
+        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
   }
 
   @differentiable

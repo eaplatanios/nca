@@ -22,7 +22,6 @@ public struct SNLI: Task {
   public let trainExamples: [Example]
   public let devExamples: [Example]
   public let testExamples: [Example]
-  public let textTokenizer: FullTextTokenizer
   public let maxSequenceLength: Int
   public let batchSize: Int
 
@@ -75,9 +74,9 @@ public struct SNLI: Task {
 }
 
 extension SNLI {
-  public init(
+  public init<A: Architecture>(
+    for architecture: A,
     taskDirectoryURL: URL,
-    textTokenizer: FullTextTokenizer,
     maxSequenceLength: Int,
     batchSize: Int
   ) throws {
@@ -107,16 +106,25 @@ extension SNLI {
       fromFile: dataFilesURL.appendingPathComponent("test.tsv"),
       fileType: .test)
 
-    self.textTokenizer = textTokenizer
     self.maxSequenceLength = maxSequenceLength
     self.batchSize = batchSize
 
     // Create a function that converts examples to data batches.
-    let exampleMapFn = { example in
-      SNLI.convertExampleToBatch(
-        example,
-        maxSequenceLength: maxSequenceLength,
-        textTokenizer: textTokenizer)
+    let exampleMapFn: (Example) -> DataBatch = { example -> DataBatch in
+      let textBatch = architecture.preprocess(
+        sequences: [example.sentence1, example.sentence2],
+        maxSequenceLength: maxSequenceLength)
+      return DataBatch(
+        inputs: textBatch,
+        labels: example.entailment.map { entailment in
+          Tensor<Int32>({ () -> Int32 in
+            switch entailment {
+            case .entailment: return 0
+            case .contradiction: return 1
+            case .neutral: return 2
+            }
+          }())
+        })
     }
 
     // Create the data iterators used for training and evaluating.
@@ -152,37 +160,6 @@ extension SNLI {
           labels: nil)
         })
       .prefetched(count: 2)
-  }
-
-  /// Converts an example to a data batch.
-  ///
-  /// - Parameters:
-  ///   - example: Example to convert.
-  ///   - maxSequenceLength: Maximum allowed sequence length.
-  ///   - textTokenizer: Text tokenizer to use for the conversion.
-  ///
-  /// - Returns: Data batch that corresponds to the provided example.
-  private static func convertExampleToBatch(
-    _ example: Example,
-    maxSequenceLength: Int,
-    textTokenizer: FullTextTokenizer
-  ) -> DataBatch {
-    let tokenized = preprocessText(
-      sequences: [example.sentence1, example.sentence2],
-      maxSequenceLength: maxSequenceLength,
-      usingTokenizer: textTokenizer)
-    return DataBatch(
-      inputs: TextBatch(
-        tokenIds: Tensor(tokenized.tokenIds.map(Int32.init)),
-        tokenTypeIds: Tensor(tokenized.tokenTypeIds.map(Int32.init)),
-        mask: Tensor(tokenized.mask.map { $0 ? 1 : 0 })),
-      labels: example.entailment.map { entailment in Tensor<Int32>({ () -> Int32 in
-        switch entailment {
-        case .entailment: return 0
-        case .contradiction: return 1
-        case .neutral: return 2
-        }
-      }())})
   }
 }
 

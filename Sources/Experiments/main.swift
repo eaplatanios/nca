@@ -56,123 +56,92 @@ let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let ncaDir = currentDir.appendingPathComponent("temp")
 let modulesDir = ncaDir.appendingPathComponent("modules")
 let tasksDir = ncaDir.appendingPathComponent("tasks")
+let bertDir = modulesDir.appendingPathComponent("text").appendingPathComponent("bert")
 
-let bertDir = modulesDir
-  .appendingPathComponent("text")
-  .appendingPathComponent("bert")
-let bertPreTrainedModel = BERT.PreTrainedModel.base(cased: false, multilingual: false)
-try bertPreTrainedModel.maybeDownload(to: bertDir)
-let bertConfigurationURL = bertDir
-  .appendingPathComponent(bertPreTrainedModel.name)
-  .appendingPathComponent("bert_config.json")
-let vocabularyURL = bertDir
-  .appendingPathComponent(bertPreTrainedModel.name)
-  .appendingPathComponent("vocab.txt")
-let vocabulary = try! Vocabulary(fromFile: vocabularyURL)
-let bertConfiguration = try! BERT.Configuration(fromFile: bertConfigurationURL)
-
+let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
+var architecture = SimpleArchitecture(
+  textPerception: bert,
+  contextEmbeddingSize: 32,
+  conceptEmbeddingSize: 32,
+  hiddenSize: 1024,
+  reasoningHiddenSize: 1024)
 let useCurriculum = true
-
-// let albertDir = modulesDir
-//   .appendingPathComponent("text")
-//   .appendingPathComponent("albert")
-// let albertPreTrainedModel = ALBERT.PreTrainedModel.base
-// try albertPreTrainedModel.maybeDownload(to: albertDir)
-// let vocabularyURL = albertDir
-//   .appendingPathComponent(albertPreTrainedModel.name)
-//   .appendingPathComponent("assets")
-//   .appendingPathComponent("30k-clean.model")
-// let vocabulary = try! Vocabulary(fromSentencePieceModel: vocabularyURL)
-// let albertConfiguration = albertPreTrainedModel.configuration
-
-let textTokenizer = FullTextTokenizer(
-  caseSensitive: false,
-  vocabulary: vocabulary,
-  unknownToken: "[UNK]",
-  maxTokenLength: bertConfiguration.maxSequenceLength)
 
 let maxSequenceLength = 128 // bertConfiguration.maxSequenceLength
 let taskInitializers: [() -> (String, Task)] = [
   { () in
     ("MRPC", try! MRPC(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("CoLA", try! CoLA(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("RTE", try! RTE(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("SST", try! SST(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("STS", try! STS(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("QNLI", try! QNLI(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("WNLI", try! WNLI(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("SNLI", try! SNLI(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("MNLI", try! MNLI(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
   },
   { () in
     ("QQP", try! QQP(
+      for: architecture,
       taskDirectoryURL: tasksDir,
-      textTokenizer: textTokenizer,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
-  }]
+  }
+]
 logger.info("Initializing tasks and loading their data in memory.")
 var tasks = taskInitializers.concurrentMap { $0() }
-
-var architecture = SimpleArchitecture(
-  bertConfiguration: bertConfiguration,
-  contextEmbeddingSize: 32,
-  conceptEmbeddingSize: 32,
-  hiddenSize: 1024,
-  reasoningHiddenSize: 1024)
-try! architecture.textPerception.load(preTrainedModel: bertPreTrainedModel, from: bertDir)
 
 var optimizer = WeightDecayedAdam(
   for: architecture,
@@ -191,18 +160,12 @@ var optimizer = WeightDecayedAdam(
   epsilon: 1e-6,
   maxGradientGlobalNorm: 1.0)
 
-architecture.freezeTextPerception()
-
 logger.info("Training.")
 var losses = [Float](repeating: 0, count: tasks.count)
 var minLosses = [Float](repeating: 0, count: tasks.count)
 var lastUpdate = [Int](repeating: 0, count: tasks.count)
 var updateCounts = [Int](repeating: 0, count: tasks.count)
 for step in 1..<10000 {
-  if step > 1000 {
-    architecture.unfreezeTextPerception()
-    optimizer.step = 0
-  }
   if useCurriculum && step == 1 {
     for taskIndex in tasks.indices {
       losses[taskIndex] = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
