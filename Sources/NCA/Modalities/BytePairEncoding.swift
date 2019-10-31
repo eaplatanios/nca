@@ -40,7 +40,7 @@ public struct BytePairEncoder {
   /// - Returns: Array containing the BPE-coded tokens.
   public func encode(token: String) -> [String] {
 //    if let cached = cache[token] { return cached }
-    let token = " " + token
+//    let token = " " + token
     let encodedToken = String(String.UnicodeScalarView(token.utf8.map {
       BytePairEncoder.bytesToUnicode[$0]!
     }))

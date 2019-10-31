@@ -432,8 +432,10 @@ public struct RoBERTaTokenizer: Tokenizer {
   public let caseSensitive: Bool
   public let unknownToken: String
 
-  private let basicTokenizer: BasicTokenizer
   private let bytePairEncoder: BytePairEncoder
+
+  private let tokenizationRegex: NSRegularExpression = try! NSRegularExpression(
+    pattern: "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+")
 
   /// Creates a full text tokenizer.
   ///
@@ -449,13 +451,13 @@ public struct RoBERTaTokenizer: Tokenizer {
   ) {
     self.caseSensitive = caseSensitive
     self.unknownToken = unknownToken
-    self.basicTokenizer = BasicTokenizer(caseSensitive: caseSensitive)
     self.bytePairEncoder = bytePairEncoder
   }
 
   public func tokenize(_ text: String) -> [String] {
-    basicTokenizer.tokenize(text).flatMap {
-      bytePairEncoder.encode(token: $0)
+    let matches = tokenizationRegex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+    return matches.flatMap {
+      bytePairEncoder.encode(token: String(text[Range($0.range, in: text)!]))
     }
   }
 }
