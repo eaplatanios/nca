@@ -58,7 +58,8 @@ let modulesDir = ncaDir.appendingPathComponent("modules")
 let tasksDir = ncaDir.appendingPathComponent("tasks")
 let bertDir = modulesDir.appendingPathComponent("text").appendingPathComponent("bert")
 
-let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
+let bert = try BERT.PreTrainedModel.robertaBase.load(from: bertDir)
+//let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
 var architecture = SimpleArchitecture(
   textPerception: bert,
   contextEmbeddingSize: 32,
@@ -138,8 +139,7 @@ let taskInitializers: [() -> (String, Task)] = [
       taskDirectoryURL: tasksDir,
       maxSequenceLength: maxSequenceLength,
       batchSize: 1024))
-  }
-]
+  }]
 logger.info("Initializing tasks and loading their data in memory.")
 var tasks = taskInitializers.concurrentMap { $0() }
 

@@ -15,11 +15,16 @@
 import Foundation
 import TensorFlow
 
+// TODO: !!! [AD] Avoid using token type embeddings for RoBERTa when optional AD is supported.
+// TODO: !!! [AD] Similarly for the embedding projection used in ALBERT.
+
 /// BERT layer for encoding text.
 ///
 /// - Sources:
 ///   - [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](
 ///       https://arxiv.org/pdf/1810.04805.pdf).
+///   - [RoBERTa: A Robustly Optimized BERT Pretraining Approach](
+///       https://arxiv.org/pdf/1907.11692.pdf).
 ///   - [ALBERT: A Lite BERT for Self-Supervised Learning of Language Representations](
 ///       https://arxiv.org/pdf/1909.11942.pdf).
 public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint & Codable>: Module {
@@ -28,8 +33,8 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
 
   @noDerivative public let variant: Variant
   @noDerivative public let vocabulary: Vocabulary
+  @noDerivative public let tokenizer: Tokenizer
   @noDerivative public let caseSensitive: Bool
-  @noDerivative public let tokenizer: TextTokenizer
   @noDerivative public let hiddenSize: Int
   @noDerivative public let hiddenLayerCount: Int
   @noDerivative public let attentionHeadCount: Int
@@ -46,7 +51,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
   public var positionEmbedding: Embedding<Scalar>
   public var embeddingLayerNormalization: LayerNormalization<Scalar>
   @noDerivative public var embeddingDropout: Dropout<Scalar>
-  public var embeddingProjection: [Affine<Scalar>] // TODO: [AD] Change to optional once supported.
+  public var embeddingProjection: [Affine<Scalar>]
   public var encoderLayers: [TransformerEncoderLayer]
 
   public var regularizationValue: TangentVector {
@@ -80,6 +85,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
   public init(
     variant: Variant,
     vocabulary: Vocabulary,
+    tokenizer: Tokenizer,
     caseSensitive: Bool,
     hiddenSize: Int = 768,
     hiddenLayerCount: Int = 12,
@@ -95,6 +101,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
   ) {
     self.variant = variant
     self.vocabulary = vocabulary
+    self.tokenizer = tokenizer
     self.caseSensitive = caseSensitive
     self.hiddenSize = hiddenSize
     self.hiddenLayerCount = hiddenLayerCount
@@ -106,11 +113,6 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     self.maxSequenceLength = maxSequenceLength
     self.typeVocabularySize = typeVocabularySize
     self.initializerStandardDeviation = initializerStandardDeviation
-    self.tokenizer = FullTextTokenizer(
-      caseSensitive: caseSensitive,
-      vocabulary: vocabulary,
-      unknownToken: "[UNK]",
-      maxTokenLength: nil)
 
     if case let .albert(_, hiddenGroupCount) = variant {
       precondition(
@@ -120,7 +122,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
 
     let embeddingSize: Int = {
       switch variant {
-      case .originalBert: return hiddenSize
+      case .bert, .roberta: return hiddenSize
       case let .albert(embeddingSize, _): return embeddingSize
       }
     }()
@@ -147,8 +149,14 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // effectively contains an embedding table for positions
     // [0, 1, 2, ..., maxPositionEmbeddings - 1], and the current sequence may have positions
     // [0, 1, 2, ..., sequenceLength - 1], so we can just perform a slice.
+    let positionPaddingIndex = { () -> Int in
+      switch variant {
+      case .bert, .albert: return 0
+      case .roberta: return 2
+      }
+    }()
     self.positionEmbedding = Embedding(
-      vocabularySize: maxSequenceLength,
+      vocabularySize: positionPaddingIndex + maxSequenceLength,
       embeddingSize: embeddingSize,
       embeddingsInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(initializerStandardDeviation)),
@@ -162,7 +170,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // Add an embedding projection layer if using the ALBERT variant.
     self.embeddingProjection = {
       switch variant {
-      case .originalBert: return []
+      case .bert, .roberta: return []
       case let .albert(embeddingSize, _):
         // TODO: [AD] Change to optional once supported.
         return [Affine<Scalar>(
@@ -174,7 +182,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     }()
 
     switch variant {
-    case .originalBert:
+    case .bert, .roberta:
       self.encoderLayers = (0..<hiddenLayerCount).map { _ in
         TransformerEncoderLayer(
           hiddenSize: hiddenSize,
@@ -225,7 +233,13 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // short then each token that is truncated likely contains more information than respective
     // tokens in longer sequences.
     var totalLength = sequences.map { $0.count }.reduce(0, +)
-    while totalLength >= maxSequenceLength - 1 - sequences.count {
+    let totalLengthLimit = { () -> Int in
+      switch variant {
+      case .bert, .albert: return maxSequenceLength - 1 - sequences.count
+      case .roberta: return maxSequenceLength - 1 - 2 * sequences.count
+      }
+    }()
+    while totalLength >= totalLengthLimit {
       let maxIndex = sequences.enumerated().max(by: { $0.1.count < $1.1.count })!.0
       sequences[maxIndex] = [String](sequences[maxIndex].dropLast())
       totalLength = sequences.map { $0.count }.reduce(0, +)
@@ -247,15 +261,23 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // For classification tasks, the first vector (corresponding to `[CLS]`) is used as the
     // "sentence embedding". Note that this only makes sense because the entire model is fine-tuned
     // under this assumption.
-    var tokens = ["[CLS]"]
+    //
+    // In RoBERTa, the convention is slightly different. For example:
+    //   tokens:       <s> is this jack ##son ##ville ? </s> </s> no it is not . </s> </s>
+    // Note that RoBERTa does not make use of token types.
+    var tokens = [variant.beginSequenceToken]
     var tokenTypeIds = [Int32(0)]
     for (sequenceId, sequence) in sequences.enumerated() {
       for token in sequence {
         tokens.append(token)
         tokenTypeIds.append(Int32(sequenceId))
       }
-      tokens.append("[SEP]")
+      tokens.append(variant.endSequenceToken)
       tokenTypeIds.append(Int32(sequenceId))
+      if case .roberta = variant {
+        tokens.append(variant.endSequenceToken)
+        tokenTypeIds.append(Int32(sequenceId))
+      }
     }
     let tokenIds = tokens.map { Int32(vocabulary.tokensToIds[$0]!) }
 
@@ -276,11 +298,24 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // Compute the input embeddings and apply layer normalization and dropout on them.
     let tokenEmbeddings = tokenEmbedding(input.tokenIds)
     let tokenTypeEmbeddings = tokenTypeEmbedding(input.tokenTypeIds)
+    let positionPaddingIndex = withoutDerivative(at: { () -> Int in
+      switch variant {
+      case .bert, .albert: return 0
+      case .roberta: return 2
+      }
+    }())
     let positionEmbeddings = positionEmbedding.embeddings.slice(
-      lowerBounds: [0, 0],
-      upperBounds: [sequenceLength, -1]
+      lowerBounds: [positionPaddingIndex, 0],
+      upperBounds: [positionPaddingIndex + sequenceLength, -1]
     ).expandingShape(at: 0)
-    var embeddings = tokenEmbeddings + tokenTypeEmbeddings + positionEmbeddings
+    var embeddings = tokenEmbeddings + positionEmbeddings
+
+    // Add token type embeddings if needed, based on which BERT variant is being used.
+    switch variant {
+    case .bert, .albert: embeddings = embeddings + tokenTypeEmbeddings
+    case .roberta: ()
+    }
+
     embeddings = embeddingLayerNormalization(embeddings)
     embeddings = embeddingDropout(embeddings)
 
@@ -300,7 +335,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
 
     // Run the stacked transformer.
     switch variant {
-    case .originalBert:
+    case .bert, .roberta:
       for layerIndex in 0..<withoutDerivative(at: encoderLayers) { $0.count } {
         transformerInput = encoderLayers[layerIndex](TransformerInput(
           sequence: transformerInput,
@@ -326,20 +361,119 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
 extension BERT {
   public enum Variant: CustomStringConvertible {
     /// - Source: [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](
-    ///            https://arxiv.org/pdf/1810.04805.pdf).
-    case originalBert
+    ///             https://arxiv.org/pdf/1810.04805.pdf).
+    case bert
+
+    /// - Source: [RoBERTa: A Robustly Optimized BERT Pretraining Approach](
+    ///             https://arxiv.org/pdf/1907.11692.pdf).
+    case roberta
 
     /// - Source: [ALBERT: A Lite BERT for Self-Supervised Learning of Language Representations](
-    ///            https://arxiv.org/pdf/1909.11942.pdf).
+    ///             https://arxiv.org/pdf/1909.11942.pdf).
     case albert(embeddingSize: Int, hiddenGroupCount: Int)
 
     public var description: String {
       switch self {
-      case .originalBert:
-        return "original-bert"
+      case .bert:
+        return "bert"
+      case .roberta:
+        return "roberta"
       case let .albert(embeddingSize, hiddenGroupCount):
         return "albert-E-\(embeddingSize)-G-\(hiddenGroupCount)"
       }
+    }
+
+    internal var beginSequenceToken: String {
+      switch self {
+      case .bert, .albert: return "[CLS]"
+      case .roberta: return "<s>"
+      }
+    }
+
+    internal var endSequenceToken: String {
+      switch self {
+      case .bert, .albert: return "[SEP]"
+      case .roberta: return "</s>"
+      }
+    }
+  }
+}
+
+//===-----------------------------------------------------------------------------------------===//
+// Tokenization
+//===-----------------------------------------------------------------------------------------===//
+
+/// BERT tokenizer that is simply defined as the composition of the basic text tokenizer and the
+/// greedy subword tokenizer.
+public struct BERTTokenizer: Tokenizer {
+  public let caseSensitive: Bool
+  public let vocabulary: Vocabulary
+  public let unknownToken: String
+  public let maxTokenLength: Int?
+
+  private let basicTextTokenizer: BasicTokenizer
+  private let greedySubwordTokenizer: GreedySubwordTokenizer
+
+  /// Creates a BERT tokenizer.
+  ///
+  /// - Parameters:
+  ///   - vocabulary: Vocabulary containing all supported tokens.
+  ///   - caseSensitive: Specifies whether or not to ignore case.
+  ///   - unknownToken: Token used to represent unknown tokens (i.e., tokens that are not in the
+  ///     provided vocabulary or whose length is longer than `maxTokenLength`).
+  ///   - maxTokenLength: Maximum allowed token length.
+  public init(
+    vocabulary: Vocabulary,
+    caseSensitive: Bool = false,
+    unknownToken: String = "[UNK]",
+    maxTokenLength: Int? = nil
+  ) {
+    self.caseSensitive = caseSensitive
+    self.vocabulary = vocabulary
+    self.unknownToken = unknownToken
+    self.maxTokenLength = maxTokenLength
+    self.basicTextTokenizer = BasicTokenizer(caseSensitive: caseSensitive)
+    self.greedySubwordTokenizer = GreedySubwordTokenizer(
+      vocabulary: vocabulary,
+      unknownToken: unknownToken,
+      maxTokenLength: maxTokenLength)
+  }
+
+  public func tokenize(_ text: String) -> [String] {
+    basicTextTokenizer.tokenize(text).flatMap(greedySubwordTokenizer.tokenize)
+  }
+}
+
+/// RoBERTa tokenizer that is simply defined as the composition of the basic text tokenizer and the
+/// byte pair encoder.
+public struct RoBERTaTokenizer: Tokenizer {
+  public let caseSensitive: Bool
+  public let unknownToken: String
+
+  private let basicTokenizer: BasicTokenizer
+  private let bytePairEncoder: BytePairEncoder
+
+  /// Creates a full text tokenizer.
+  ///
+  /// - Parameters:
+  ///   - bytePairEncoder: Byte pair encoder to use.
+  ///   - caseSensitive: Specifies whether or not to ignore case.
+  ///   - unknownToken: Token used to represent unknown tokens (i.e., tokens that are not in the
+  ///     provided vocabulary or whose length is longer than `maxTokenLength`).
+  public init(
+    bytePairEncoder: BytePairEncoder,
+    caseSensitive: Bool = false,
+    unknownToken: String = "<unk>"
+  ) {
+    self.caseSensitive = caseSensitive
+    self.unknownToken = unknownToken
+    self.basicTokenizer = BasicTokenizer(caseSensitive: caseSensitive)
+    self.bytePairEncoder = bytePairEncoder
+  }
+
+  public func tokenize(_ text: String) -> [String] {
+    basicTokenizer.tokenize(text).flatMap {
+      bytePairEncoder.encode(token: $0)
     }
   }
 }
@@ -352,6 +486,8 @@ extension BERT {
   public enum PreTrainedModel {
     case bertBase(cased: Bool, multilingual: Bool)
     case bertLarge(cased: Bool, wholeWordMasking: Bool)
+    case robertaBase
+    case robertaLarge
     case albertBase
     case albertLarge
     case albertXLarge
@@ -360,24 +496,27 @@ extension BERT {
     /// The name of this pre-trained model.
     public var name: String {
       switch self {
-      case .bertBase(false, false): return "uncased_L-12_H-768_A-12"
-      case .bertBase(true, false): return "cased_L-12_H-768_A-12"
-      case .bertBase(false, true): return "multilingual_L-12_H-768_A-12"
-      case .bertBase(true, true): return "multi_cased_L-12_H-768_A-12"
-      case .bertLarge(false, false): return "uncased_L-24_H-1024_A-16"
-      case .bertLarge(true, false): return "cased_L-24_H-1024_A-16"
-      case .bertLarge(false, true): return "wwm_uncased_L-24_H-1024_A-16"
-      case .bertLarge(true, true): return "wwm_cased_L-24_H-1024_A-16"
-      case .albertBase: return "base"
-      case .albertLarge: return "large"
-      case .albertXLarge: return "xLarge"
-      case .albertXXLarge: return "xxLarge"
+      case .bertBase(false, false): return "BERT Base Uncased"
+      case .bertBase(true, false): return "BERT Base Cased"
+      case .bertBase(false, true): return "BERT Base Multilingual Uncased"
+      case .bertBase(true, true): return "BERT Base Multilingual Cased"
+      case .bertLarge(false, false): return "BERT Large Uncased"
+      case .bertLarge(true, false): return "BERT Large Cased"
+      case .bertLarge(false, true): return "BERT Large Whole-Word-Masking Uncased"
+      case .bertLarge(true, true): return "BERT Large Whole-Word-Masking Cased"
+      case .robertaBase: return "RoBERTa Base"
+      case .robertaLarge: return "RoBERTa Large"
+      case .albertBase: return "ALBERT Base"
+      case .albertLarge: return "ALBERT Large"
+      case .albertXLarge: return "ALBERT xLarge"
+      case .albertXXLarge: return "ALBERT xxLarge"
       }
     }
 
     /// The URL where this pre-trained model can be downloaded from.
     public var url: URL {
       let bertPrefix = "https://storage.googleapis.com/bert_models"
+      let robertaPrefix = "https://www.dropbox.com/s"
       let albertPrefix = "https://storage.googleapis.com/tfhub-modules/google/albert"
       switch self {
       case .bertBase(false, false): return URL(string: "\(bertPrefix)/2018_10_18/\(name).zip")!
@@ -388,6 +527,8 @@ extension BERT {
       case .bertLarge(true, false): return URL(string: "\(bertPrefix)/2018_10_18/\(name).zip")!
       case .bertLarge(false, true): return URL(string: "\(bertPrefix)/2019_05_30/\(name).zip")!
       case .bertLarge(true, true): return URL(string: "\(bertPrefix)/2019_05_30/\(name).zip")!
+      case .robertaBase: return URL(string: "\(robertaPrefix)/12ymhgwbfxm2ozf/base.zip?dl=1")!
+      case .robertaLarge: return URL(string: "\(robertaPrefix)/pd8cnpuv20e198n/large.zip?dl=1")!
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
         return URL(string: "\(albertPrefix)_\(name)/1.tar.gz")!
       }
@@ -395,12 +536,12 @@ extension BERT {
 
     public var variant: Variant {
       switch self {
-      case .bertBase: return .originalBert
-      case .bertLarge: return .originalBert
-      case .albertBase: return .albert(embeddingSize: 128, hiddenGroupCount: 1)
-      case .albertLarge: return .albert(embeddingSize: 128, hiddenGroupCount: 1)
-      case .albertXLarge: return .albert(embeddingSize: 128, hiddenGroupCount: 1)
-      case .albertXXLarge: return .albert(embeddingSize: 128, hiddenGroupCount: 1)
+      case .bertBase, .bertLarge:
+        return .bert
+      case .robertaBase, .robertaLarge:
+        return .roberta
+      case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
+        return .albert(embeddingSize: 128, hiddenGroupCount: 1)
       }
     }
 
@@ -408,6 +549,7 @@ extension BERT {
       switch self {
       case let .bertBase(cased, _): return cased
       case let .bertLarge(cased, _): return cased
+      case .robertaBase, .robertaLarge: return false
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge: return false
       }
     }
@@ -416,6 +558,8 @@ extension BERT {
       switch self {
       case .bertBase: return 768
       case .bertLarge: return 1024
+      case .robertaBase: return 768
+      case .robertaLarge: return 1024
       case .albertBase: return 768
       case .albertLarge: return 1024
       case .albertXLarge: return 2048
@@ -427,6 +571,8 @@ extension BERT {
       switch self {
       case .bertBase: return 12
       case .bertLarge: return 24
+      case .robertaBase: return 12
+      case .robertaLarge: return 24
       case .albertBase: return 12
       case .albertLarge: return 24
       case .albertXLarge: return 24
@@ -438,6 +584,8 @@ extension BERT {
       switch self {
       case .bertBase: return 12
       case .bertLarge: return 16
+      case .robertaBase: return 12
+      case .robertaLarge: return 16
       case .albertBase: return 12
       case .albertLarge: return 16
       case .albertXLarge: return 16
@@ -449,10 +597,32 @@ extension BERT {
       switch self {
       case .bertBase: return 3072
       case .bertLarge: return 4096
+      case .robertaBase: return 3072
+      case .robertaLarge: return 4096
       case .albertBase: return 3072
       case .albertLarge: return 4096
       case .albertXLarge: return 8192
       case .albertXXLarge: return 16384
+      }
+    }
+
+    /// The sub-directory of this pre-trained model.
+    internal var subDirectory: String {
+      switch self {
+      case .bertBase(false, false): return "uncased_L-12_H-768_A-12"
+      case .bertBase(true, false): return "cased_L-12_H-768_A-12"
+      case .bertBase(false, true): return "multilingual_L-12_H-768_A-12"
+      case .bertBase(true, true): return "multi_cased_L-12_H-768_A-12"
+      case .bertLarge(false, false): return "uncased_L-24_H-1024_A-16"
+      case .bertLarge(true, false): return "cased_L-24_H-1024_A-16"
+      case .bertLarge(false, true): return "wwm_uncased_L-24_H-1024_A-16"
+      case .bertLarge(true, true): return "wwm_cased_L-24_H-1024_A-16"
+      case .robertaBase: return "base"
+      case .robertaLarge: return "large"
+      case .albertBase: return "base"
+      case .albertLarge: return "large"
+      case .albertXLarge: return "xLarge"
+      case .albertXXLarge: return "xxLarge"
       }
     }
 
@@ -473,15 +643,50 @@ extension BERT {
         switch self {
         case .bertBase, .bertLarge:
           let vocabularyURL = directory
-            .appendingPathComponent(name)
+            .appendingPathComponent(subDirectory)
             .appendingPathComponent("vocab.txt")
           return try! Vocabulary(fromFile: vocabularyURL)
+        case .robertaBase, .robertaLarge:
+          let vocabularyURL = directory
+            .appendingPathComponent(subDirectory)
+            .appendingPathComponent("vocab.json")
+          return try! Vocabulary(fromJSONFile: vocabularyURL)
         case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
           let vocabularyURL = directory
-            .appendingPathComponent(name)
+            .appendingPathComponent(subDirectory)
             .appendingPathComponent("assets")
             .appendingPathComponent("30k-clean.model")
           return try! Vocabulary(fromSentencePieceModel: vocabularyURL)
+        }
+      }()
+
+      // Create the tokenizer and load any necessary files.
+      let tokenizer: Tokenizer = try {
+        switch self {
+        case .bertBase, .bertLarge, .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
+          return BERTTokenizer(
+            vocabulary: vocabulary,
+            caseSensitive: caseSensitive,
+            unknownToken: "[UNK]",
+            maxTokenLength: nil)
+        case .robertaBase, .robertaLarge:
+          let mergePairsFileURL = directory
+            .appendingPathComponent(subDirectory)
+            .appendingPathComponent("merges.txt")
+          let mergePairs = [BytePairEncoder.Pair: Int](
+            uniqueKeysWithValues:
+              (try String(contentsOfFile: mergePairsFileURL.path, encoding: .utf8))
+                .components(separatedBy: .newlines)
+                .dropFirst()
+                .enumerated()
+                .map { (index, line) -> (BytePairEncoder.Pair, Int) in
+                  let lineParts = line.split(separator: " ")
+                  return (BytePairEncoder.Pair(String(lineParts[0]), String(lineParts[1])), index)
+                })
+          return RoBERTaTokenizer(
+            bytePairEncoder: BytePairEncoder(vocabulary: vocabulary, mergePairs: mergePairs),
+            caseSensitive: caseSensitive,
+            unknownToken: "<unk>")
         }
       }()
 
@@ -489,6 +694,7 @@ extension BERT {
       var model = BERT(
         variant: variant,
         vocabulary: vocabulary,
+        tokenizer: tokenizer,
         caseSensitive: caseSensitive,
         hiddenSize: hiddenSize,
         hiddenLayerCount: hiddenLayerCount,
@@ -506,11 +712,15 @@ extension BERT {
       switch self {
       case .bertBase, .bertLarge:
         model.load(fromTensorFlowCheckpoint: directory
-          .appendingPathComponent(name)
+          .appendingPathComponent(subDirectory)
           .appendingPathComponent("bert_model.ckpt"))
+      case .robertaBase, .robertaLarge:
+        model.load(fromTensorFlowCheckpoint: directory
+          .appendingPathComponent(subDirectory)
+          .appendingPathComponent("roberta_\(subDirectory).ckpt"))
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
         model.load(fromTensorFlowCheckpoint: directory
-          .appendingPathComponent(name)
+          .appendingPathComponent(subDirectory)
           .appendingPathComponent("variables")
           .appendingPathComponent("variables"))
       }
@@ -520,23 +730,23 @@ extension BERT {
     /// Downloads this pre-trained model to the specified directory, if it's not already there.
     public func maybeDownload(to directory: URL) throws {
       switch self {
-      case .bertBase, .bertLarge:
+      case .bertBase, .bertLarge, .robertaBase, .robertaLarge:
         // Download the model, if necessary.
-        let compressedFileURL = directory.appendingPathComponent("\(name).zip")
+        let compressedFileURL = directory.appendingPathComponent("\(subDirectory).zip")
         try NCA.maybeDownload(from: url, to: compressedFileURL)
 
         // Extract the data, if necessary.
         let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
         if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
-          try extract(zipFileAt: compressedFileURL, to: directory)
+          try extract(zipFileAt: compressedFileURL, to: extractedDirectoryURL)
         }
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
         // Download the model, if necessary.
-        let compressedFileURL = directory.appendingPathComponent("\(name).tar.gz")
+        let compressedFileURL = directory.appendingPathComponent("\(subDirectory).tar.gz")
         try NCA.maybeDownload(from: url, to: compressedFileURL)
 
         // Extract the data, if necessary.
-        let extractedDirectoryURL = directory.appendingPathComponent(name)
+        let extractedDirectoryURL = directory.appendingPathComponent(subDirectory)
         if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
           try extract(tarGZippedFileAt: compressedFileURL, to: extractedDirectoryURL)
         }
@@ -555,8 +765,6 @@ extension BERT {
     let checkpointReader = TensorFlowCheckpointReader(checkpointPath: fileURL.path)
     tokenEmbedding.embeddings =
       Tensor(checkpointReader.loadTensor(named: "bert/embeddings/word_embeddings"))
-    tokenTypeEmbedding.embeddings =
-      Tensor(checkpointReader.loadTensor(named: "bert/embeddings/token_type_embeddings"))
     positionEmbedding.embeddings =
       Tensor(checkpointReader.loadTensor(named: "bert/embeddings/position_embeddings"))
     embeddingLayerNormalization.offset =
@@ -564,7 +772,13 @@ extension BERT {
     embeddingLayerNormalization.scale =
       Tensor(checkpointReader.loadTensor(named: "bert/embeddings/LayerNorm/gamma"))
     switch variant {
-    case .originalBert:
+    case .bert, .albert:
+      tokenTypeEmbedding.embeddings =
+        Tensor(checkpointReader.loadTensor(named: "bert/embeddings/token_type_embeddings"))
+    case .roberta: ()
+    }
+    switch variant {
+    case .bert, .roberta:
       for layerIndex in encoderLayers.indices {
         let prefix = "bert/encoder/layer_\(layerIndex)"
         encoderLayers[layerIndex].multiHeadAttention.queryWeight =

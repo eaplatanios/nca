@@ -99,7 +99,7 @@ public struct Vocabulary {
     self.idsToTokens = idsToTokens
   }
 
-  public func contains(token: String) -> Bool {
+  public func contains(_ token: String) -> Bool {
     tokensToIds.keys.contains(token)
   }
 
@@ -144,16 +144,22 @@ extension Vocabulary {
           .enumerated().map { ($0.element, $0.offset) },
         uniquingKeysWith: { (v1, v2) in max(v1, v2) }))
   }
+
+  public init(fromJSONFile fileURL: URL) throws {
+    let json = try String(contentsOfFile: fileURL.path)
+    let tokensToIds = try JSONDecoder().decode([String: Int].self, from: json.data(using: .utf8)!)
+    self.init(tokensToIds: tokensToIds)
+  }
 }
 
 /// Text tokenizer which is used to split strings into arrays of tokens.
-public protocol TextTokenizer {
+public protocol Tokenizer {
   func tokenize(_ text: String) -> [String]
 }
 
 /// Basic text tokenizer that performs some simple preprocessing to clean the provided text and
 /// then performs tokenization based on whitespaces.
-public struct BasicTextTokenizer: TextTokenizer {
+public struct BasicTokenizer: Tokenizer {
   public let caseSensitive: Bool
 
   /// Creates a basic text tokenizer.
@@ -193,12 +199,12 @@ public struct BasicTextTokenizer: TextTokenizer {
   }
 }
 
-/// Subword tokenizer.
+/// Greedy subword tokenizer.
 ///
 /// This tokenizer uses a greedy longest-match-first algorithm to perform tokenization using the
 /// provided vocabulary. For example, `"unaffable"` could be tokenized as
 /// `["un", "##aff", "##able"]`.
-public struct SubwordTokenizer: TextTokenizer {
+public struct GreedySubwordTokenizer: Tokenizer {
   public let vocabulary: Vocabulary
   public let unknownToken: String
   public let maxTokenLength: Int?
@@ -231,7 +237,7 @@ public struct SubwordTokenizer: TextTokenizer {
           if start > token.startIndex {
             substring = "##" + substring
           }
-          if vocabulary.contains(token: substring) {
+          if vocabulary.contains(substring) {
             currentSubstring = substring
             start = end
           } else {
@@ -250,47 +256,6 @@ public struct SubwordTokenizer: TextTokenizer {
       }
       return isBad ? [unknownToken] : subTokens
     }
-  }
-}
-
-/// Full text tokenizer that is simply defined as the composition of the basic text tokenizer and
-/// the subword tokenizer.
-public struct FullTextTokenizer: TextTokenizer {
-  public let caseSensitive: Bool
-  public let vocabulary: Vocabulary
-  public let unknownToken: String
-  public let maxTokenLength: Int?
-
-  private let basicTextTokenizer: BasicTextTokenizer
-  private let subwordTokenizer: SubwordTokenizer
-
-  /// Creates a full text tokenizer.
-  ///
-  /// - Parameters:
-  ///   - caseSensitive: Specifies whether or not to ignore case.
-  ///   - vocabulary: Vocabulary containing all supported tokens.
-  ///   - unknownToken: Token used to represent unknown tokens (i.e., tokens that are not in the
-  ///     provided vocabulary or whose length is longer than `maxTokenLength`).
-  ///   - maxTokenLength: Maximum allowed token length.
-  public init(
-    caseSensitive: Bool = false,
-    vocabulary: Vocabulary,
-    unknownToken: String = "[UNK]",
-    maxTokenLength: Int? = nil
-  ) {
-    self.caseSensitive = caseSensitive
-    self.vocabulary = vocabulary
-    self.unknownToken = unknownToken
-    self.maxTokenLength = maxTokenLength
-    self.basicTextTokenizer = BasicTextTokenizer(caseSensitive: caseSensitive)
-    self.subwordTokenizer = SubwordTokenizer(
-      vocabulary: vocabulary,
-      unknownToken: unknownToken,
-      maxTokenLength: maxTokenLength)
-  }
-
-  public func tokenize(_ text: String) -> [String] {
-    basicTextTokenizer.tokenize(text).flatMap(subwordTokenizer.tokenize)
   }
 }
 
