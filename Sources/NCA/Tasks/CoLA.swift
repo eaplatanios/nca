@@ -33,17 +33,22 @@ public struct CoLA: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
+  public let problem: Problem = .classify([.negative(.grammar), .positive(.grammar)])
+  public let concepts: [Concept] = [.negative(.grammar), .positive(.grammar)]
+
   public mutating func update<A: Architecture, O: Optimizer>(
     architecture: inout A,
     using optimizer: inout O
   ) -> Float where O.Model == A {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
-    let labels = Tensor<Float>(batch.labels!)
+    let labels = batch.labels!
+    let problem = self.problem
+    let concepts = self.concepts
     return withLearningPhase(.training) {
       let (loss, gradient) = architecture.valueWithGradient {
-        sigmoidCrossEntropy(
-          logits: $0.score(input, context: .inputScoring, concept: .grammaticalCorrectness),
+        softmaxCrossEntropy(
+          logits: $0.classify(input, problem: problem, concepts: concepts),
           labels: labels,
           reduction: { $0.mean() })
       }
@@ -58,11 +63,8 @@ public struct CoLA: Task {
     var devGroundTruth = [Bool]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.score(
-        input,
-        context: .inputScoring,
-        concept: .grammaticalCorrectness)
-      let predictedLabels = sigmoid(predictions) .>= 0.5
+      let predictions = architecture.classify(input, problem: problem, concepts: concepts)
+      let predictedLabels = predictions.argmax(squeezingAxis: -1) .== 1
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
       devGroundTruth.append(contentsOf: batch.labels!.scalars.map { $0 == 1 })
     }

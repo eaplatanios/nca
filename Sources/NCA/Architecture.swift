@@ -57,10 +57,9 @@ extension Architecture {
   @differentiable
   public func classify(
     _ input: ArchitectureInput,
-    context: Context,
+    problem: Problem,
     concepts: [Concept]
   ) -> Tensor<Float> {
-    let problem = Problem.scoring(context: context, concepts: concepts)
 // TODO: !!! Swift compiler AutoDiff bug.
 //    var latent = Tensor<Float>(zeros: [])
 //    if let text = input.text {
@@ -80,10 +79,9 @@ extension Architecture {
   @differentiable
   public func score(
     _ input: ArchitectureInput,
-    context: Context,
+    problem: Problem,
     concept: Concept
   ) -> Tensor<Float> {
-    let problem = Problem.scoring(context: context, concepts: [concept])
 // TODO: !!! Swift compiler AutoDiff bug.
 //    var latent = Tensor<Float>(zeros: [])
 //    if let text = input.text {
@@ -109,34 +107,11 @@ public struct ArchitectureInput {
   }
 }
 
-public enum Context: Int, CaseIterable {
-  case inputScoring = 0
-}
-
-public enum Concept: Int, CaseIterable {
-  case grammaticalCorrectness = 0
-  case entailment = 1
-  case contradiction = 2
-  case neutral = 3
-  case positiveSentiment = 4
-  case negativeSentiment = 5
-  case paraphrasing = 6
-  case equivalence = 7
-}
-
-public enum Problem {
-  case scoring(context: Context, concepts: [Concept])
-}
-
 public struct SimpleArchitecture: Architecture {
-  @noDerivative public let contextEmbeddingSize: Int
-  @noDerivative public let conceptEmbeddingSize: Int
   @noDerivative public let hiddenSize: Int
+  @noDerivative public let reasoningHiddenSize: Int
 
-  public var contextEmbeddings: Tensor<Float>
-  public var conceptEmbeddings: Tensor<Float>
-  public var conceptToContextDense: Affine<Float>
-  public var contextConceptCombiner: Affine<Float>
+  public var problemCompiler: SimpleProblemCompiler
   public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
@@ -147,10 +122,7 @@ public struct SimpleArchitecture: Architecture {
 
   public var regularizationValue: TangentVector {
     TangentVector(
-      contextEmbeddings: contextEmbeddings,
-      conceptEmbeddings: conceptEmbeddings,
-      conceptToContextDense: conceptToContextDense.regularizationValue,
-      contextConceptCombiner: contextConceptCombiner.regularizationValue,
+      problemCompiler: problemCompiler.regularizationValue,
       textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
@@ -161,32 +133,17 @@ public struct SimpleArchitecture: Architecture {
   }
 
   public init(
+    problemCompiler: SimpleProblemCompiler,
     textPerception: BERT,
-    contextEmbeddingSize: Int,
-    conceptEmbeddingSize: Int,
     hiddenSize: Int,
     reasoningHiddenSize: Int
   ) {
-    self.contextEmbeddingSize = contextEmbeddingSize
-    self.conceptEmbeddingSize = conceptEmbeddingSize
-    self.hiddenSize = hiddenSize
-    let initializer = truncatedNormalInitializer(
-      standardDeviation: Tensor<Float>(textPerception.initializerStandardDeviation))
-    self.contextEmbeddings = initializer([Context.allCases.count, contextEmbeddingSize])
-    self.conceptEmbeddings = initializer([Concept.allCases.count, conceptEmbeddingSize])
-    self.conceptToContextDense = Affine<Float>(
-      inputSize: conceptEmbeddingSize,
-      outputSize: contextEmbeddingSize,
-      weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
-    self.contextConceptCombiner = Affine<Float>(
-      inputSize: 2 * contextEmbeddingSize,
-      outputSize: contextEmbeddingSize,
-      weightInitializer: truncatedNormalInitializer(
-        standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
+    self.problemCompiler = problemCompiler
     self.textPerception = textPerception
+    self.hiddenSize = hiddenSize
+    self.reasoningHiddenSize = reasoningHiddenSize
     self.textPoolingQueryDense = Affine<Float>(
-      inputSize: contextEmbeddingSize,
+      inputSize: problemCompiler.problemEmbeddingSize,
       outputSize: textPerception.hiddenSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
@@ -208,7 +165,7 @@ public struct SimpleArchitecture: Architecture {
     self.textPoolingOutputDense = ContextualizedLayer(
       base: textPoolingOutputDenseBase,
       generator: Linear<Float>(
-        inputSize: contextEmbeddingSize,
+        inputSize: problemCompiler.problemEmbeddingSize,
         outputSize: textPoolingOutputDenseBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
@@ -228,7 +185,7 @@ public struct SimpleArchitecture: Architecture {
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
       generator: Linear<Float>(
-        inputSize: contextEmbeddingSize,
+        inputSize: problemCompiler.problemEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
@@ -237,22 +194,9 @@ public struct SimpleArchitecture: Architecture {
       axis: -1)
     self.reasoningToConceptDense = Affine<Float>(
       inputSize: hiddenSize,
-      outputSize: conceptEmbeddingSize,
+      outputSize: problemCompiler.conceptEmbeddingSize,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
-  }
-
-  @differentiable
-  internal func context(for problem: Problem) -> Tensor<Float> {
-    switch problem {
-    case let .scoring(context, concepts):
-      let context = contextEmbeddings[context.rawValue].expandingShape(at: 0)
-      let conceptIds = withoutDerivative(at: concepts) { Tensor($0.map { Int32($0.rawValue) }) }
-      let concepts = conceptEmbeddings.gathering(atIndices: conceptIds)
-      let mappedConcepts = conceptToContextDense(concepts).sum(alongAxes: 0)
-      let concatenated = Tensor(concatenating: [context, mappedConcepts], alongAxis: -1)
-      return contextConceptCombiner(concatenated)
-    }
   }
 
   @differentiable
@@ -266,7 +210,7 @@ public struct SimpleArchitecture: Architecture {
     perceivedText: Tensor<Float>,
     problem: Problem
   ) -> Tensor<Float> {
-    let context = self.context(for: problem)
+    let context = problemCompiler.compile(problem: problem)
     let query = textPoolingQueryDense(context)
       .expandingShape(at: 0)
       .tiled(multiples: Tensor([Int32(perceivedText.shape[0]), 1, 1]))
@@ -282,7 +226,7 @@ public struct SimpleArchitecture: Architecture {
 
   @differentiable
   public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
-    let context = self.context(for: problem)
+    let context = problemCompiler.compile(problem: problem)
     let contextualizedInput = ContextualizedInput(input: input, context: context)
     return reasoningLayerNormalization(input + reasoning(contextualizedInput))
   }
@@ -290,8 +234,10 @@ public struct SimpleArchitecture: Architecture {
   @differentiable
   public func score(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float> {
     let reasoning = reasoningToConceptDense(reasoningOutput)
-    let conceptIds = withoutDerivative(at: concepts) { Tensor($0.map { Int32($0.rawValue) }) }
-    let concepts = conceptEmbeddings.gathering(atIndices: conceptIds)
-    return matmul(reasoning, transposed: false, concepts, transposed: true)
+    let compiledConcepts = Tensor<Float>(
+      concatenating: problemCompiler.compile(concepts: concepts),
+      alongAxis: 0
+    ).expandingShape(at: 0)
+    return matmul(reasoning, transposed: false, compiledConcepts, transposed: true)
   }
 }

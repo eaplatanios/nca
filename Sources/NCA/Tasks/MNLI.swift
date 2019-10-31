@@ -39,6 +39,15 @@ public struct MNLI: Task {
   private var mismatchedDevDataIterator: DevDataIterator
   private var mismatchedTestDataIterator: TestDataIterator
 
+  public let problem: Problem = .classify([
+    .positive(.implication),
+    .negative(.implication),
+    .neutral(.implication)])
+  public let concepts: [Concept] = [
+    .positive(.implication),
+    .negative(.implication),
+    .neutral(.implication)]
+
   public mutating func update<A: Architecture, O: Optimizer>(
     architecture: inout A,
     using optimizer: inout O
@@ -46,13 +55,12 @@ public struct MNLI: Task {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
     let labels = batch.labels!
+    let problem = self.problem
+    let concepts = self.concepts
     return withLearningPhase(.training) {
       let (loss, gradient) = architecture.valueWithGradient {
         softmaxCrossEntropy(
-          logits: $0.classify(
-            input,
-            context: .inputScoring,
-            concepts: [.entailment, .contradiction, .neutral]),
+          logits: $0.classify(input, problem: problem, concepts: concepts),
           labels: labels,
           reduction: { $0.mean() })
       }
@@ -67,10 +75,7 @@ public struct MNLI: Task {
     var matchedDevGroundTruth = [Int32]()
     while let batch = withDevice(.cpu, perform: { matchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.classify(
-        input,
-        context: .inputScoring,
-        concepts: [.entailment, .contradiction, .neutral])
+      let predictions = architecture.classify(input, problem: problem, concepts: concepts)
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       matchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
       matchedDevGroundTruth.append(contentsOf: batch.labels!.scalars)
@@ -80,10 +85,7 @@ public struct MNLI: Task {
     var mismatchedDevGroundTruth = [Int32]()
     while let batch = withDevice(.cpu, perform: { mismatchedDevDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.classify(
-        input,
-        context: .inputScoring,
-        concepts: [.entailment, .contradiction, .neutral])
+      let predictions = architecture.classify(input, problem: problem, concepts: concepts)
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       mismatchedDevPredictedLabels.append(contentsOf: predictedLabels.scalars)
       mismatchedDevGroundTruth.append(contentsOf: batch.labels!.scalars)

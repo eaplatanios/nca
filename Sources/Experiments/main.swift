@@ -60,15 +60,20 @@ let bertDir = modulesDir.appendingPathComponent("text").appendingPathComponent("
 
 let bert = try BERT.PreTrainedModel.robertaBase.load(from: bertDir)
 //let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
-var architecture = SimpleArchitecture(
-  textPerception: bert,
-  contextEmbeddingSize: 32,
+let problemCompiler = SimpleProblemCompiler(
+  problemEmbeddingSize: 32,
   conceptEmbeddingSize: 32,
+  modifierEmbeddingSize: 32,
+  conceptModifierHiddenSize: 32,
+  problemAttentionHeadCount: 4)
+var architecture = SimpleArchitecture(
+  problemCompiler: problemCompiler,
+  textPerception: bert,
   hiddenSize: 1024,
   reasoningHiddenSize: 1024)
-let useCurriculum = true
+let useCurriculum = false
 
-let maxSequenceLength = 128 // bertConfiguration.maxSequenceLength
+let maxSequenceLength = 512 // bertConfiguration.maxSequenceLength
 let taskInitializers: [() -> (String, Task)] = [
   { () in
     ("MRPC", try! MRPC(
@@ -220,7 +225,7 @@ for step in 1..<10000 {
   }
 
   // Evaluation
-  if step % 500 == 0 {
+  if step % 10 == 0 {
     // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
     logger.info("╔\([String](repeating: "═", count: 91).joined())╗")
     logger.info("║\([String](repeating: " ", count: 35).joined())\(step: step) Evaluation\([String](repeating: " ", count: 35).joined())║")

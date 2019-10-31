@@ -65,8 +65,7 @@ public struct ContextualizedLayer<
   }
 }
 
-// TODO: Support more than just Float tensors for contextualization.
-extension Module {
+extension KeyPathIterable {
   /// The number of parameters of this module. Note that only `Tensor<Float>`-valued parameters are
   /// being accounted for at this point.
   public var parameterCount: Int {
@@ -76,7 +75,10 @@ extension Module {
     }
     return count
   }
+}
 
+// TODO: Support more than just Float tensors for contextualization.
+extension Module {
   /// Creates a new module by initializing all its parameters to the values contained in the
   /// provided flattened tensor. The rest of its properties are initialized based on `other`.
   ///

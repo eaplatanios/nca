@@ -33,18 +33,23 @@ public struct STS: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
+  public let problem: Problem = .classify([.negative(.equivalence), .positive(.equivalence)])
+  public let concepts: [Concept] = [.negative(.equivalence), .positive(.equivalence)]
+
   public mutating func update<A: Architecture, O: Optimizer>(
     architecture: inout A,
     using optimizer: inout O
   ) -> Float where O.Model == A {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
-    let labels = Tensor<Float>(batch.labels!)
+    let labels = batch.labels!
+    let problem = self.problem
+    let concepts = self.concepts
     return withLearningPhase(.training) {
       let (loss, gradient) = architecture.valueWithGradient {
-        sigmoidCrossEntropy(
-          logits: $0.score(input, context: .inputScoring, concept: .equivalence),
-          labels: labels,
+        softmaxCrossEntropy(
+          logits: $0.classify(input, problem: problem, concepts: concepts),
+          probabilities: Tensor<Float>(stacking: [1 - labels, labels], alongAxis: -1),
           reduction: { $0.mean() })
       }
       optimizer.update(&architecture, along: gradient)
@@ -58,11 +63,8 @@ public struct STS: Task {
     var devGroundTruth = [Float]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.score(
-        input,
-        context: .inputScoring,
-        concept: .equivalence)
-      let predictedLabels = sigmoid(predictions) * 5
+      let predictions = architecture.classify(input, problem: problem, concepts: concepts)
+      let predictedLabels = softmax(predictions)[0..., 1] * 5
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
       devGroundTruth.append(contentsOf: (batch.labels! * 5).scalars)
     }

@@ -35,6 +35,15 @@ public struct SNLI: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
+  public let problem: Problem = .classify([
+    .positive(.implication),
+    .negative(.implication),
+    .neutral(.implication)])
+  public let concepts: [Concept] = [
+    .positive(.implication),
+    .negative(.implication),
+    .neutral(.implication)]
+
   public mutating func update<A: Architecture, O: Optimizer>(
     architecture: inout A,
     using optimizer: inout O
@@ -42,13 +51,12 @@ public struct SNLI: Task {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
     let labels = batch.labels!
+    let problem = self.problem
+    let concepts = self.concepts
     return withLearningPhase(.training) {
       let (loss, gradient) = architecture.valueWithGradient {
         softmaxCrossEntropy(
-          logits: $0.classify(
-            input,
-            context: .inputScoring,
-            concepts: [.entailment, .contradiction, .neutral]),
+          logits: $0.classify(input, problem: problem, concepts: concepts),
           labels: labels,
           reduction: { $0.mean() })
       }
@@ -63,10 +71,7 @@ public struct SNLI: Task {
     var devGroundTruth = [Int32]()
     while let batch = withDevice(.cpu, perform: { devDataIterator.next() }) {
       let input = ArchitectureInput(text: batch.inputs)
-      let predictions = architecture.classify(
-        input,
-        context: .inputScoring,
-        concepts: [.entailment, .contradiction, .neutral])
+      let predictions = architecture.classify(input, problem: problem, concepts: concepts)
       let predictedLabels = predictions.argmax(squeezingAxis: -1)
       devPredictedLabels.append(contentsOf: predictedLabels.scalars)
       devGroundTruth.append(contentsOf: batch.labels!.scalars)
