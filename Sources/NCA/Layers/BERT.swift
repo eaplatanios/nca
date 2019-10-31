@@ -456,8 +456,12 @@ public struct RoBERTaTokenizer: Tokenizer {
 
   public func tokenize(_ text: String) -> [String] {
     let matches = tokenizationRegex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-    return matches.flatMap {
-      bytePairEncoder.encode(token: String(text[Range($0.range, in: text)!]))
+    return matches.flatMap { match -> [String] in
+      if let range = Range(match.range, in: text) {
+        return bytePairEncoder.encode(token: String(text[range]))
+      } else {
+        return []
+      }
     }
   }
 }
