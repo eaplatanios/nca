@@ -18,9 +18,10 @@ public struct BytePairEncoder {
   public let vocabulary: Vocabulary
   public let mergePairs: [Pair: Int]
   public let reversedMergePairs: [String: Pair]
+  public let useCache: Bool
 
   /// A cache used to store encoded tokens and thus speed up encoding.
-  private var cache: [String: [String]]?
+//  private var cache: [String: [String]] // TODO: Find a nice way to support caching.
 
   public init(vocabulary: Vocabulary, mergePairs: [Pair: Int], useCache: Bool = true) {
     self.vocabulary = vocabulary
@@ -28,7 +29,8 @@ public struct BytePairEncoder {
     self.reversedMergePairs = [String: Pair](uniqueKeysWithValues: mergePairs.map {
       ($0.key.left + $0.key.right, $0.key)
     })
-    self.cache = useCache ? [:] : nil
+    self.useCache = useCache
+//    self.cache = [:]
   }
 
   /// Encodes the provided token to a sequence of BPE-coded tokens.
@@ -37,9 +39,11 @@ public struct BytePairEncoder {
   ///   - token: Token to encode.
   /// - Returns: Array containing the BPE-coded tokens.
   public func encode(token: String) -> [String] {
-    if let cached = cache?[token] { return cached }
+//    if let cached = cache[token] { return cached }
     let token = " " + token
-    let encodedToken = String(String.UnicodeScalarView(token.utf8.map { bytesToUnicode[$0]! }))
+    let encodedToken = String(String.UnicodeScalarView(token.utf8.map {
+      BytePairEncoder.bytesToUnicode[$0]!
+    }))
     var parts = BytePairEncoder.splitWithDelimiters(
       token: encodedToken,
       glossaryRegex: BytePairEncoder.defaultGlossaryRegex)
@@ -60,7 +64,7 @@ public struct BytePairEncoder {
     }
 
     // Update the cache and return.
-    if var cache = self.cache { cache[token] = encoded }
+//    if useCache { cache[token] = encoded }
     return encoded
   }
 }
@@ -93,7 +97,7 @@ extension BytePairEncoder {
   //    When you're at something like a 10B token dataset you end up needing around 5K for decent coverage.
   //    This is a significant percentage of your normal, say, 32K bpe vocab.
   //    To avoid that, we want lookup tables between utf-8 bytes and unicode strings.
-  internal var bytesToUnicode: [UInt8: UnicodeScalar] {
+  internal static let bytesToUnicode: [UInt8: UnicodeScalar] = {
     var bytes = [UInt8](33...126) + [UInt8](161...172) + [UInt8](174...255)
     var characters = bytes.map(UInt32.init)
     var offset = UInt32(0)
@@ -106,7 +110,7 @@ extension BytePairEncoder {
     }
     return [UInt8: UnicodeScalar](
       uniqueKeysWithValues: zip(bytes, characters.map { UnicodeScalar($0)! }))
-  }
+  }()
 
   /// Recursively splits `token` into smaller units (by reversing BPE merges) until all units
   /// are either in the provided vocabulary, or cannot be split further.

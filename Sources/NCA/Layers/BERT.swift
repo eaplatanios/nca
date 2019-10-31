@@ -261,21 +261,17 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // For classification tasks, the first vector (corresponding to `[CLS]`) is used as the
     // "sentence embedding". Note that this only makes sense because the entire model is fine-tuned
     // under this assumption.
-    //
-    // In RoBERTa, the convention is slightly different. For example:
-    //   tokens:       <s> is this jack ##son ##ville ? </s> </s> no it is not . </s> </s>
-    // Note that RoBERTa does not make use of token types.
-    var tokens = [variant.beginSequenceToken]
+    var tokens = ["[CLS]"]
     var tokenTypeIds = [Int32(0)]
     for (sequenceId, sequence) in sequences.enumerated() {
       for token in sequence {
         tokens.append(token)
         tokenTypeIds.append(Int32(sequenceId))
       }
-      tokens.append(variant.endSequenceToken)
+      tokens.append("[SEP]")
       tokenTypeIds.append(Int32(sequenceId))
-      if case .roberta = variant {
-        tokens.append(variant.endSequenceToken)
+      if case .roberta = variant, sequenceId < sequences.count - 1 {
+        tokens.append("[SEP]")
         tokenTypeIds.append(Int32(sequenceId))
       }
     }
@@ -382,20 +378,6 @@ extension BERT {
         return "albert-E-\(embeddingSize)-G-\(hiddenGroupCount)"
       }
     }
-
-    internal var beginSequenceToken: String {
-      switch self {
-      case .bert, .albert: return "[CLS]"
-      case .roberta: return "<s>"
-      }
-    }
-
-    internal var endSequenceToken: String {
-      switch self {
-      case .bert, .albert: return "[SEP]"
-      case .roberta: return "</s>"
-      }
-    }
   }
 }
 
@@ -463,7 +445,7 @@ public struct RoBERTaTokenizer: Tokenizer {
   public init(
     bytePairEncoder: BytePairEncoder,
     caseSensitive: Bool = false,
-    unknownToken: String = "<unk>"
+    unknownToken: String = "[UNK]"
   ) {
     self.caseSensitive = caseSensitive
     self.unknownToken = unknownToken
@@ -549,7 +531,7 @@ extension BERT {
       switch self {
       case let .bertBase(cased, _): return cased
       case let .bertLarge(cased, _): return cased
-      case .robertaBase, .robertaLarge: return false
+      case .robertaBase, .robertaLarge: return true
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge: return false
       }
     }
@@ -650,7 +632,12 @@ extension BERT {
           let vocabularyURL = directory
             .appendingPathComponent(subDirectory)
             .appendingPathComponent("vocab.json")
-          return try! Vocabulary(fromJSONFile: vocabularyURL)
+          let dictionaryURL = directory
+            .appendingPathComponent(subDirectory)
+            .appendingPathComponent("dict.txt")
+          return try! Vocabulary(
+            fromRoBERTaJSONFile: vocabularyURL,
+            dictionaryFile: dictionaryURL)
         case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
           let vocabularyURL = directory
             .appendingPathComponent(subDirectory)
@@ -679,14 +666,15 @@ extension BERT {
                 .components(separatedBy: .newlines)
                 .dropFirst()
                 .enumerated()
-                .map { (index, line) -> (BytePairEncoder.Pair, Int) in
+                .compactMap { (index, line) -> (BytePairEncoder.Pair, Int)? in
                   let lineParts = line.split(separator: " ")
+                  if lineParts.count < 2 { return nil }
                   return (BytePairEncoder.Pair(String(lineParts[0]), String(lineParts[1])), index)
                 })
           return RoBERTaTokenizer(
             bytePairEncoder: BytePairEncoder(vocabulary: vocabulary, mergePairs: mergePairs),
             caseSensitive: caseSensitive,
-            unknownToken: "<unk>")
+            unknownToken: "[UNK]")
         }
       }()
 
@@ -859,5 +847,26 @@ extension BERT {
           Tensor(checkpointReader.loadTensor(named: "\(prefix)/LayerNorm_1/gamma"))
       }
     }
+  }
+}
+
+extension Vocabulary {
+  internal init(fromRoBERTaJSONFile fileURL: URL, dictionaryFile dictionaryURL: URL) throws {
+    let dictionary = [Int: Int](
+      uniqueKeysWithValues:
+        (try String(contentsOfFile: dictionaryURL.path, encoding: .utf8))
+          .components(separatedBy: .newlines)
+          .compactMap { line in
+            let lineParts = line.split(separator: " ")
+            if lineParts.count < 1 { return nil }
+            return Int(lineParts[0])
+          }
+          .enumerated()
+          .map { ($1, $0 + 4) })
+    let json = try String(contentsOfFile: fileURL.path)
+    var tokensToIds = try JSONDecoder().decode([String: Int].self, from: json.data(using: .utf8)!)
+    tokensToIds = tokensToIds.mapValues { dictionary[$0]! }
+    tokensToIds.merge(["[CLS]": 0, "[PAD]": 1, "[SEP]": 2, "[UNK]": 3]) { (_, new) in new }
+    self.init(tokensToIds: tokensToIds)
   }
 }

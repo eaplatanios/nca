@@ -42,7 +42,7 @@ with tf.Session() as session:
     attention_biases = variables[prefix + '.self_attn.in_proj_bias'].numpy()
     hidden_size = attention_kernels.shape[0] // 3
     create_tf_variable(
-      value=attention_kernels[:hidden_size, :],
+      value=np.transpose(attention_kernels[:hidden_size, :]),
       name=tf_prefix + '/attention/self/query/kernel',
       session=session)
     create_tf_variable(
@@ -50,7 +50,7 @@ with tf.Session() as session:
       name=tf_prefix + '/attention/self/query/bias',
       session=session)
     create_tf_variable(
-      value=attention_kernels[hidden_size:2*hidden_size, :],
+      value=np.transpose(attention_kernels[hidden_size:2*hidden_size, :]),
       name=tf_prefix + '/attention/self/key/kernel',
       session=session)
     create_tf_variable(
@@ -58,7 +58,7 @@ with tf.Session() as session:
       name=tf_prefix + '/attention/self/key/bias',
       session=session)
     create_tf_variable(
-      value=attention_kernels[2*hidden_size:, :],
+      value=np.transpose(attention_kernels[2*hidden_size:, :]),
       name=tf_prefix + '/attention/self/value/kernel',
       session=session)
     create_tf_variable(
@@ -66,11 +66,11 @@ with tf.Session() as session:
       name=tf_prefix + '/attention/self/value/bias',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.self_attn.out_proj.weight'].numpy(),
+      value=np.transpose(variables[prefix + '.self_attn.out_proj.weight'].numpy()),
       name=tf_prefix + '/attention/output/dense/kernel',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.self_attn.out_proj.weight'].numpy(),
+      value=variables[prefix + '.self_attn.out_proj.bias'].numpy(),
       name=tf_prefix + '/attention/output/dense/bias',
       session=session)
     create_tf_variable(
@@ -82,7 +82,7 @@ with tf.Session() as session:
       name=tf_prefix + '/attention/output/LayerNorm/gamma',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.fc1.weight'].numpy(),
+      value=np.transpose(variables[prefix + '.fc1.weight'].numpy()),
       name=tf_prefix + '/intermediate/dense/kernel',
       session=session)
     create_tf_variable(
@@ -90,7 +90,7 @@ with tf.Session() as session:
       name=tf_prefix + '/intermediate/dense/bias',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.fc2.weight'].numpy(),
+      value=np.transpose(variables[prefix + '.fc2.weight'].numpy()),
       name=tf_prefix + '/output/dense/kernel',
       session=session)
     create_tf_variable(
@@ -106,4 +106,4 @@ with tf.Session() as session:
       name=tf_prefix + '/output/LayerNorm/gamma',
       session=session)
   saver = tf.train.Saver(tf.trainable_variables())
-  saver.save(session, os.path.join(os.getcwd(), 'roberta_base.ckpt'))
+  saver.save(session, os.path.join(os.getcwd(), 'roberta_large.ckpt'))
