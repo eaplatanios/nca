@@ -503,18 +503,18 @@ extension BERT {
 
     /// The URL where this pre-trained model can be downloaded from.
     public var url: URL {
-      let bertPrefix = "https://storage.googleapis.com/bert_models"
+      let bertPrefix = "https://storage.googleapis.com/bert_models/2018_"
       let robertaPrefix = "https://www.dropbox.com/s"
       let albertPrefix = "https://storage.googleapis.com/tfhub-modules/google/albert"
       switch self {
-      case .bertBase(false, false): return URL(string: "\(bertPrefix)/2018_10_18/\(name).zip")!
-      case .bertBase(true, false): return URL(string: "\(bertPrefix)/2018_10_18/\(name).zip")!
-      case .bertBase(false, true): return URL(string: "\(bertPrefix)/2018_11_03/\(name).zip")!
-      case .bertBase(true, true): return URL(string: "\(bertPrefix)/2018_11_23/\(name).zip")!
-      case .bertLarge(false, false): return URL(string: "\(bertPrefix)/2018_10_18/\(name).zip")!
-      case .bertLarge(true, false): return URL(string: "\(bertPrefix)/2018_10_18/\(name).zip")!
-      case .bertLarge(false, true): return URL(string: "\(bertPrefix)/2019_05_30/\(name).zip")!
-      case .bertLarge(true, true): return URL(string: "\(bertPrefix)/2019_05_30/\(name).zip")!
+      case .bertBase(false, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
+      case .bertBase(true, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
+      case .bertBase(false, true): return URL(string: "\(bertPrefix)11_03/\(subDirectory).zip")!
+      case .bertBase(true, true): return URL(string: "\(bertPrefix)11_23/\(subDirectory).zip")!
+      case .bertLarge(false, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
+      case .bertLarge(true, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
+      case .bertLarge(false, true): return URL(string: "\(bertPrefix)05_30/\(subDirectory).zip")!
+      case .bertLarge(true, true): return URL(string: "\(bertPrefix)05_30/\(subDirectory).zip")!
       case .robertaBase: return URL(string: "\(robertaPrefix)/12ymhgwbfxm2ozf/base.zip?dl=1")!
       case .robertaLarge: return URL(string: "\(robertaPrefix)/pd8cnpuv20e198n/large.zip?dl=1")!
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
@@ -632,6 +632,7 @@ extension BERT {
         case .bertBase, .bertLarge:
           let vocabularyURL = directory
             .appendingPathComponent(subDirectory)
+            .appendingPathComponent(subDirectory)
             .appendingPathComponent("vocab.txt")
           return try! Vocabulary(fromFile: vocabularyURL)
         case .robertaBase, .robertaLarge:
@@ -706,6 +707,7 @@ extension BERT {
       switch self {
       case .bertBase, .bertLarge:
         model.load(fromTensorFlowCheckpoint: directory
+          .appendingPathComponent(subDirectory)
           .appendingPathComponent(subDirectory)
           .appendingPathComponent("bert_model.ckpt"))
       case .robertaBase, .robertaLarge:

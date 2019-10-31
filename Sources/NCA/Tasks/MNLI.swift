@@ -46,17 +46,19 @@ public struct MNLI: Task {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
     let labels = batch.labels!
-    let (loss, gradient) = architecture.valueWithGradient {
-      softmaxCrossEntropy(
-        logits: $0.classify(
-          input,
-          context: .inputScoring,
-          concepts: [.entailment, .contradiction, .neutral]),
-        labels: labels,
-        reduction: { $0.mean() })
+    return withLearningPhase(.training) {
+      let (loss, gradient) = architecture.valueWithGradient {
+        softmaxCrossEntropy(
+          logits: $0.classify(
+            input,
+            context: .inputScoring,
+            concepts: [.entailment, .contradiction, .neutral]),
+          labels: labels,
+          reduction: { $0.mean() })
+      }
+      optimizer.update(&architecture, along: gradient)
+      return loss.scalarized()
     }
-    optimizer.update(&architecture, along: gradient)
-    return loss.scalarized()
   }
 
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {

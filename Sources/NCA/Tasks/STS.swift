@@ -40,14 +40,16 @@ public struct STS: Task {
     let batch = withDevice(.cpu) { trainDataIterator.next()! }
     let input = ArchitectureInput(text: batch.inputs)
     let labels = Tensor<Float>(batch.labels!)
-    let (loss, gradient) = architecture.valueWithGradient {
-      sigmoidCrossEntropy(
-        logits: $0.score(input, context: .inputScoring, concept: .equivalence),
-        labels: labels,
-        reduction: { $0.mean() })
+    return withLearningPhase(.training) {
+      let (loss, gradient) = architecture.valueWithGradient {
+        sigmoidCrossEntropy(
+          logits: $0.score(input, context: .inputScoring, concept: .equivalence),
+          labels: labels,
+          reduction: { $0.mean() })
+      }
+      optimizer.update(&architecture, along: gradient)
+      return loss.scalarized()
     }
-    optimizer.update(&architecture, along: gradient)
-    return loss.scalarized()
   }
 
   public func evaluate<A: Architecture>(using architecture: A) -> [String: Float] {

@@ -28,11 +28,11 @@ with tf.Session() as session:
     name='bert/embeddings/position_embeddings',
     session=session)
   create_tf_variable(
-    value=variables['decoder.sentence_encoder.emb_layer_norm.weight'].numpy(),
+    value=variables['decoder.sentence_encoder.emb_layer_norm.bias'].numpy(),
     name='bert/embeddings/LayerNorm/beta',
     session=session)
   create_tf_variable(
-    value=variables['decoder.sentence_encoder.emb_layer_norm.bias'].numpy(),
+    value=variables['decoder.sentence_encoder.emb_layer_norm.weight'].numpy(),
     name='bert/embeddings/LayerNorm/gamma',
     session=session)
   for layer in range((len(variables) - 10) // 12):
@@ -74,11 +74,11 @@ with tf.Session() as session:
       name=tf_prefix + '/attention/output/dense/bias',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.self_attn_layer_norm.weight'].numpy(),
+      value=variables[prefix + '.self_attn_layer_norm.bias'].numpy(),
       name=tf_prefix + '/attention/output/LayerNorm/beta',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.self_attn_layer_norm.bias'].numpy(),
+      value=variables[prefix + '.self_attn_layer_norm.weight'].numpy(),
       name=tf_prefix + '/attention/output/LayerNorm/gamma',
       session=session)
     create_tf_variable(
@@ -98,11 +98,11 @@ with tf.Session() as session:
       name=tf_prefix + '/output/dense/bias',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.final_layer_norm.weight'].numpy(),
+      value=variables[prefix + '.final_layer_norm.bias'].numpy(),
       name=tf_prefix + '/output/LayerNorm/beta',
       session=session)
     create_tf_variable(
-      value=variables[prefix + '.final_layer_norm.bias'].numpy(),
+      value=variables[prefix + '.final_layer_norm.weight'].numpy(),
       name=tf_prefix + '/output/LayerNorm/gamma',
       session=session)
   saver = tf.train.Saver(tf.trainable_variables())
