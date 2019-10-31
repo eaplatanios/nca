@@ -122,7 +122,7 @@ extension RTE {
       .shuffled(bufferSize: 1000)
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
+        keyFn: { $0.inputs.tokenIds.shape[1] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
@@ -132,7 +132,7 @@ extension RTE {
     self.devDataIterator = devExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
+        keyFn: { $0.inputs.tokenIds.shape[1] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),
@@ -142,7 +142,7 @@ extension RTE {
     self.testDataIterator = testExamples.makeIterator()
       .map(exampleMapFn)
       .grouped(
-        keyFn: { $0.inputs.tokenIds.shape[0] / 10 },
+        keyFn: { $0.inputs.tokenIds.shape[1] / 10 },
         sizeFn: { key in batchSize / ((key + 1) * 10) },
         reduceFn: { DataBatch(
           inputs: padAndBatch(textBatches: $0.map { $0.inputs }),

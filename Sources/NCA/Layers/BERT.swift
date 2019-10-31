@@ -15,7 +15,7 @@
 import Foundation
 import TensorFlow
 
-// TODO: !!! [AD] Avoid using token type embeddings for RoBERTa when optional AD is supported.
+// TODO: !!! [AD] Avoid using token type embeddings for RoBERTa when optionals are supported in AD.
 // TODO: !!! [AD] Similarly for the embedding projection used in ALBERT.
 
 /// BERT layer for encoding text.
