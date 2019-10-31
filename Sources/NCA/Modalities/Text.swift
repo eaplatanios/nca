@@ -59,6 +59,7 @@ public func createAttentionMask(forTextBatch text: TextBatch) -> Tensor<Float> {
 
 // TODO: !!! Add documentation.
 public func padAndBatch(textBatches: [TextBatch]) -> TextBatch {
+  if textBatches.count == 1 { return textBatches.first! }
   let maxLength = textBatches.map { $0.tokenIds.shape[1] }.max()!
   let paddedBatches = textBatches.map { batch -> TextBatch in
     let paddingSize = maxLength - batch.tokenIds.shape[1]
