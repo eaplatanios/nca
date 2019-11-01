@@ -366,8 +366,8 @@ public struct LAMB<
       update.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self)
     ) {
-      let r1 = sqrt((model[keyPath: modelKp].squared()).sum()).scalarized()
-      let r2 = sqrt((update[keyPath: kp].squared()).sum()).scalarized()
+      let r1 = sqrt(model[keyPath: modelKp].squared().sum()).scalarized()
+      let r2 = sqrt(update[keyPath: kp].squared().sum()).scalarized()
       let r = r1 > 0 && r2 > 0 ? r1 / r2 : 1
       model[keyPath: modelKp].move(along: update[keyPath: kp].scaled(by: -learningRate * r))
     }
@@ -375,8 +375,8 @@ public struct LAMB<
       update.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self),
       model.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self)
     ) {
-      let r1 = sqrt((model[keyPath: modelKp].squared()).sum()).scalarized()
-      let r2 = sqrt((update[keyPath: kp].squared()).sum()).scalarized()
+      let r1 = sqrt(model[keyPath: modelKp].squared().sum()).scalarized()
+      let r2 = sqrt(update[keyPath: kp].squared().sum()).scalarized()
       let r = r1 > 0 && r2 > 0 ? r1 / r2 : 1
       model[keyPath: modelKp].move(along: update[keyPath: kp].scaled(by: -learningRate * Float(r)))
     }

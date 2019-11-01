@@ -41,13 +41,13 @@ public struct ContextualizedInput<Input: Differentiable, Context: Differentiable
 ///             http://platanios.org/assets/pdf/platanios_2018_cpg_nmt/paper.pdf).
 public struct ContextualizedLayer<
   Base: Layer,
-  Generator: Layer & Regularizable
+  Generator: Layer
 >: Layer, Regularizable where Generator.Output == Tensor<Float> {
   @noDerivative public let base: Base
   public var generator: Generator
 
   public var regularizationValue: TangentVector {
-    TangentVector(generator: generator.regularizationValue)
+    TangentVector.zero
   }
 
   public init(base: Base, generator: Generator) {

@@ -73,19 +73,21 @@ extension ProblemCompiler {
   }
 }
 
-//public struct ProblemCompiler: Regularizable, KeyPathIterable {
 public struct SimpleProblemCompiler: ProblemCompiler, KeyPathIterable {
   @noDerivative public let problemEmbeddingSize: Int
   @noDerivative public let conceptEmbeddingSize: Int
   @noDerivative public let modifierEmbeddingSize: Int
   @noDerivative public let conceptModifierHiddenSize: Int
+  @noDerivative public let conceptModifierGeneratorHiddenSize: Int
   @noDerivative public let problemAttentionHeadCount: Int
 
   public var problemEmbeddings: Tensor<Float>
   public var conceptEmbeddings: Tensor<Float>
   public var modifierEmbeddings: Tensor<Float>
   public var problemAttention: MultiHeadAttention
-  public var conceptModifier: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
+  public var conceptModifier: ContextualizedLayer<
+    Sequential<Affine<Float>, Affine<Float>>,
+    Sequential<Affine<Float>, Affine<Float>>>
 
   public var regularizationValue: TangentVector {
     TangentVector(
@@ -101,6 +103,7 @@ public struct SimpleProblemCompiler: ProblemCompiler, KeyPathIterable {
     conceptEmbeddingSize: Int,
     modifierEmbeddingSize: Int,
     conceptModifierHiddenSize: Int,
+    conceptModifierGeneratorHiddenSize: Int,
     problemAttentionHeadCount: Int,
     problemAttentionDropoutProbability: Float = 0.1,
     initializerStandardDeviation: Float = 0.02
@@ -109,6 +112,7 @@ public struct SimpleProblemCompiler: ProblemCompiler, KeyPathIterable {
     self.conceptEmbeddingSize = conceptEmbeddingSize
     self.modifierEmbeddingSize = modifierEmbeddingSize
     self.conceptModifierHiddenSize = conceptModifierHiddenSize
+    self.conceptModifierGeneratorHiddenSize = conceptModifierGeneratorHiddenSize
     self.problemAttentionHeadCount = problemAttentionHeadCount
     let initializer = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(initializerStandardDeviation))
@@ -135,12 +139,19 @@ public struct SimpleProblemCompiler: ProblemCompiler, KeyPathIterable {
         inputSize: conceptModifierHiddenSize,
         outputSize: conceptEmbeddingSize,
         weightInitializer: initializer))
-    self.conceptModifier = ContextualizedLayer(
-      base: conceptModifierBase,
-      generator: Linear<Float>(
+    let conceptModifierGenerator = Sequential(
+      Affine<Float>(
         inputSize: modifierEmbeddingSize,
+        outputSize: conceptModifierGeneratorHiddenSize,
+        activation: gelu,
+        weightInitializer: initializer),
+      Affine<Float>(
+        inputSize: conceptModifierGeneratorHiddenSize,
         outputSize: conceptModifierBase.parameterCount,
         weightInitializer: initializer))
+    self.conceptModifier = ContextualizedLayer(
+      base: conceptModifierBase,
+      generator: conceptModifierGenerator)
   }
 
   @differentiable(wrt: self)

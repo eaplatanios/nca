@@ -62,16 +62,17 @@ let bert = try BERT.PreTrainedModel.robertaBase.load(from: bertDir)
 //let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
 let problemCompiler = SimpleProblemCompiler(
   problemEmbeddingSize: 32,
-  conceptEmbeddingSize: 32,
-  modifierEmbeddingSize: 32,
-  conceptModifierHiddenSize: 32,
+  conceptEmbeddingSize: 128,
+  modifierEmbeddingSize: 1024,
+  conceptModifierHiddenSize: 128,
+  conceptModifierGeneratorHiddenSize: 512,
   problemAttentionHeadCount: 4)
 var architecture = SimpleArchitecture(
   problemCompiler: problemCompiler,
   textPerception: bert,
-  hiddenSize: 1024,
-  reasoningHiddenSize: 1024)
-let useCurriculum = false
+  hiddenSize: 128,
+  reasoningHiddenSize: 128)
+let useCurriculum = true
 
 let maxSequenceLength = 512 // bertConfiguration.maxSequenceLength
 let taskInitializers: [() -> (String, Task)] = [
@@ -217,7 +218,7 @@ for step in 1..<10000 {
       logger.info("\(step: step) | \(message)")
     }
   } else {
-    for taskIndex in tasks.indices {
+    for taskIndex in tasks.indices.shuffled() {
       losses[taskIndex] = tasks[taskIndex].1.update(architecture: &architecture, using: &optimizer)
     }
     let message = zip(tasks, losses).map { "\(task: $0.0): \(loss: $1)" }.joined(separator: " | ")
@@ -225,7 +226,7 @@ for step in 1..<10000 {
   }
 
   // Evaluation
-  if step % 10 == 0 {
+  if step % 500 == 0 {
     // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
     logger.info("╔\([String](repeating: "═", count: 91).joined())╗")
     logger.info("║\([String](repeating: " ", count: 35).joined())\(step: step) Evaluation\([String](repeating: " ", count: 35).joined())║")
