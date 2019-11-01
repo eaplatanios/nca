@@ -19,6 +19,8 @@ public enum Problem {
   case label([Concept])
 }
 
+// TODO: Add support for regularizers that try to figure out which problem the learner is currently
+// tackling. E.g., predict that it's a grammar task by looking at CoLA sentence examples.
 public enum Concept {
   case grammar
   case implication

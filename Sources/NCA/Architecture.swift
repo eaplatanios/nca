@@ -16,8 +16,10 @@ import TensorFlow
 
 public protocol Architecture: KeyPathIterable, Regularizable
 where TangentVector: KeyPathIterable {
+  associatedtype ProblemCompiler: NCA.ProblemCompiler
   associatedtype TextPerception: TextPerceptionModule
 
+  var problemCompiler: ProblemCompiler { get set }
   var textPerception: TextPerception { get set }
 
   @differentiable
@@ -25,10 +27,10 @@ where TangentVector: KeyPathIterable {
 
   /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  func pool(text: TextBatch, perceivedText: Tensor<Float>, problem: Problem) -> Tensor<Float>
+  func pool(text: TextBatch, perceivedText: Tensor<Float>, context: Tensor<Float>) -> Tensor<Float>
 
   @differentiable
-  func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float>
+  func reason(over input: Tensor<Float>, context: Tensor<Float>) -> Tensor<Float>
 
   @differentiable
   func score(reasoningOutput: Tensor<Float>, concepts: [Concept]) -> Tensor<Float>
@@ -68,11 +70,12 @@ extension Architecture {
 //        perceivedText: perceive(text: text),
 //        problem: problem)
 //    }
+    let context = problemCompiler.compile(problem: problem)
     var latent = pool(
       text: input.text!,
       perceivedText: perceive(text: input.text!),
-      problem: problem)
-    latent = reason(over: latent, problem: problem)
+      context: context)
+    latent = reason(over: latent, context: context)
     return classify(reasoningOutput: latent, concepts: concepts)
   }
 
@@ -90,11 +93,12 @@ extension Architecture {
 //        perceivedText: perceive(text: text),
 //        problem: problem)
 //    }
+    let context = problemCompiler.compile(problem: problem)
     var latent = pool(
       text: input.text!,
       perceivedText: perceive(text: input.text!),
-      problem: problem)
-    latent = reason(over: latent, problem: problem)
+      context: context)
+    latent = reason(over: latent, context: context)
     return score(reasoningOutput: latent, concepts: concept).squeezingShape(at: -1)
   }
 }
@@ -208,9 +212,8 @@ public struct SimpleArchitecture: Architecture {
   public func pool(
     text: TextBatch,
     perceivedText: Tensor<Float>,
-    problem: Problem
+    context: Tensor<Float>
   ) -> Tensor<Float> {
-    let context = problemCompiler.compile(problem: problem)
     let query = textPoolingQueryDense(context)
       .expandingShape(at: 0)
       .tiled(multiples: Tensor([Int32(perceivedText.shape[0]), 1, 1]))
@@ -225,8 +228,7 @@ public struct SimpleArchitecture: Architecture {
   }
 
   @differentiable
-  public func reason(over input: Tensor<Float>, problem: Problem) -> Tensor<Float> {
-    let context = problemCompiler.compile(problem: problem)
+  public func reason(over input: Tensor<Float>, context: Tensor<Float>) -> Tensor<Float> {
     let contextualizedInput = ContextualizedInput(input: input, context: context)
     return reasoningLayerNormalization(input + reasoning(contextualizedInput))
   }
@@ -236,8 +238,7 @@ public struct SimpleArchitecture: Architecture {
     let reasoning = reasoningToConceptDense(reasoningOutput)
     let compiledConcepts = Tensor<Float>(
       concatenating: problemCompiler.compile(concepts: concepts),
-      alongAxis: 0
-    ).expandingShape(at: 0)
+      alongAxis: 0)
     return matmul(reasoning, transposed: false, compiledConcepts, transposed: true)
   }
 }
