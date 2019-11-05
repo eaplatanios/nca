@@ -516,9 +516,9 @@ extension BERT {
       case .bertLarge(false, true): return URL(string: "\(bertPrefix)05_30/\(subDirectory).zip")!
       case .bertLarge(true, true): return URL(string: "\(bertPrefix)05_30/\(subDirectory).zip")!
       case .robertaBase: return URL(string: "\(robertaPrefix)/12ymhgwbfxm2ozf/base.zip?dl=1")!
-      case .robertaLarge: return URL(string: "\(robertaPrefix)/pd8cnpuv20e198n/large.zip?dl=1")!
+      case .robertaLarge: return URL(string: "\(robertaPrefix)/jf6kxmdvxyfl4wz/large.zip?dl=1")!
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
-        return URL(string: "\(albertPrefix)_\(name)/1.tar.gz")!
+        return URL(string: "\(albertPrefix)_\(subDirectory)/1.tar.gz")!
       }
     }
 
