@@ -198,6 +198,79 @@ public struct CIFAR10Dataset: Dataset {
   }
 }
 
+public struct CIFAR100Dataset: Dataset {
+  public let directoryURL: URL
+  public let images: [Image]
+  public let numbers: [Number]
+  public let partitions: [Partition: [Int]]
+  public let numberImageIndices: [Partition: [Float: [Int]]]
+  public let randomizedTestLabels: Bool
+
+  public var exampleCount: Int { images.count }
+
+  public init(taskDirectoryURL: URL, randomizedTestLabels: Bool = false) throws {
+    self.directoryURL = taskDirectoryURL.appendingPathComponent("CIFAR")
+    
+    let dataURL = directoryURL.appendingPathComponent("data")
+    let compressedDataLocalURL = dataURL.appendingPathComponent("cifar-100-binary.tar.gz")
+    
+    // Download the data, if necessary.
+    let compressedDataRemoteURL = URL(
+      string: String("https://www.cs.toronto.edu/~kriz/cifar-100-binary.tar.gz"))!
+    try maybeDownload(from: compressedDataRemoteURL, to: compressedDataLocalURL)
+
+    // Extract the data, if necessary.
+    let extractedDirectoryURL = dataURL.appendingPathComponent("cifar-100-binary")
+    if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
+      try extract(tarGZippedFileAt: compressedDataLocalURL, to: extractedDirectoryURL)
+    }
+
+    // Load the data file into arrays.
+    let files = [
+      "data_batch_1.bin", "data_batch_2.bin", "data_batch_3.bin",
+      "data_batch_4.bin", "data_batch_5.bin", "test_batch.bin"]
+    let filesURL = extractedDirectoryURL.appendingPathComponent("cifar-10-batches-bin")
+    var imageBytes = [UInt8]()
+    var labels = [Int64]()
+    let imageCount = 10000
+    let imageByteCount = 3073
+    for file in files {
+      let fileContents = try! Data(contentsOf: filesURL.appendingPathComponent(file))
+      for imageIndex in 0..<imageCount {
+        let baseAddress = imageIndex * imageByteCount
+        imageBytes.append(contentsOf: fileContents[(baseAddress + 2)..<(baseAddress + 3074)])
+        labels.append(Int64(fileContents[(baseAddress + 1)..<(baseAddress + 2)]))
+      }
+    }
+
+    if randomizedTestLabels {
+      for i in 50000..<60000 {
+        labels[i] = .random(in: 0...100)
+      }
+    }
+
+    // Initialize this dataset instance.
+    let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
+    let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
+    self.images = { () -> [Tensor<Float>] in
+      var images = Tensor<Float>(Tensor<UInt8>(
+        shape: [6 * imageCount, 3, 32, 32],
+        scalars: imageBytes))
+      images = images[0..., 0..., 2..<30, 2..<30]           // Crop to 28x28.
+      images = images.transposed(permutation: [0, 2, 3, 1]) // Transpose to NHWC format.
+      images /= 255
+      images = (images - colorMean) / colorStd
+      return images.unstacked(alongAxis: 0)
+    }()
+    self.numbers = labels.map(Float.init)
+    self.partitions = [.train: [Int](0..<50000), .test: [Int](50000..<60000)]
+    self.numberImageIndices = self.partitions.mapValues { [numbers] indices in
+      [Float: [Int]](grouping: indices, by: { numbers[$0] })
+    }
+    self.randomizedTestLabels = randomizedTestLabels
+  }
+}
+
 //===------------------------------------------------------------------------------------------===//
 // Iterators
 //===------------------------------------------------------------------------------------------===//

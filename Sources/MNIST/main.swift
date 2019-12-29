@@ -20,7 +20,8 @@ let tempDir = currentDir.appendingPathComponent("temp")
 let tasksDir = tempDir.appendingPathComponent("tasks")
 
 // let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
-let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
+// let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
+let dataset = try! CIFAR100Dataset(taskDirectoryURL: tasksDir)
 let batchSize = 32
 let randomSeed = Int64(123456789)
 

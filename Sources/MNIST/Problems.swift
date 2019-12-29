@@ -20,7 +20,7 @@ public enum Modality {
 
 public enum Problem {
   case identity
-  case moduloAdd1
+  case moduloAdd1(Int)
   indirect case inverse(Problem)
 }
 
@@ -133,9 +133,9 @@ public struct Task {
 internal func target(for source: Float, problem: Problem) -> Float {
   switch (problem) {
     case .identity: return source
-    case .moduloAdd1: return (source + 1).truncatingRemainder(dividingBy: 10)
+    case let .moduloAdd1(modulo): return (source + 1).truncatingRemainder(dividingBy: modulo)
     case .inverse(.identity): return source
-    case .inverse(.moduloAdd1): return (source - 1).truncatingRemainder(dividingBy: 10)
+    case let .inverse(.moduloAdd1(modulo)): return (source - 1).truncatingRemainder(dividingBy: modulo)
     case let .inverse(.inverse(baseProblem)): return target(for: source, problem: baseProblem)
   }
 }
