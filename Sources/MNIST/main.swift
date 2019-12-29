@@ -44,7 +44,7 @@ withRandomSeedForTensorFlow(randomSeed) {
     beta1: 0.9,
     beta2: 0.99,
     epsilon: 1e-8,
-    decay: 0)
+    decay: 0.001)
 
   func evaluate() {
     let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
@@ -54,7 +54,7 @@ withRandomSeedForTensorFlow(randomSeed) {
   let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
   print("Initial Evaluation: \(result)")
   var loss: Float = 0
-  for step in 0..<100000 {
+  for step in 0..<1000000 {
     loss += tasks[0].update(architecture: &architecture, using: &optimizer)
     loss += tasks[1].update(architecture: &architecture, using: &optimizer)
     loss += tasks[2].update(architecture: &architecture, using: &optimizer)
