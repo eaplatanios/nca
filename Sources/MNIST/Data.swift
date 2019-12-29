@@ -103,7 +103,7 @@ public struct MNISTDataset: Dataset {
         shape: [trnLabels.count + tstLabels.count, 28, 28, 1],
         scalars: trnImages + tstImages))
       images = images.tiled(multiples: [1, 1, 1, 3])
-      images /= 255
+      images /= 255 * 3 // The factor of 3 is to account for the tiling in the previous step.
       return images.unstacked(alongAxis: 0)
     }()
     self.numbers = [UInt8](trnLabels + tstLabels).map(Float.init)
