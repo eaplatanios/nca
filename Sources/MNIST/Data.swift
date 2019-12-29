@@ -233,13 +233,13 @@ public struct CIFAR100Dataset: Dataset {
     var imageBytes = [UInt8]()
     var labels = [Int64]()
     let imageCount = 10000
-    let imageByteCount = 3073
+    let imageByteCount = 3074
     for file in files {
       let fileContents = try! Data(contentsOf: filesURL.appendingPathComponent(file))
       for imageIndex in 0..<imageCount {
         let baseAddress = imageIndex * imageByteCount
         imageBytes.append(contentsOf: fileContents[(baseAddress + 2)..<(baseAddress + 3074)])
-        labels.append(Int64(fileContents[(baseAddress + 1)..<(baseAddress + 2)]))
+        labels.append(Int64(fileContents[baseAddress + 1]))
       }
     }
 
