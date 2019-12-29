@@ -52,7 +52,7 @@ public struct Task {
     self.tgtModality = tgtModality
     self.problem = problem
     self.dataset = dataset
-    self.trnExamplesIterator = dataset.partitions[.test]!
+    self.trnExamplesIterator = dataset.partitions[.train]!
       .makeIterator()
       .repeated()
       .shuffled(bufferSize: 1000)
