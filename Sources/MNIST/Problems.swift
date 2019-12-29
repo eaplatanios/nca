@@ -18,6 +18,9 @@ public enum Modality {
   case image, number
 }
 
+// Transform colors (e.g., add/remove color to/from image).
+// Rotate image.
+
 public enum Problem {
   case identity
   case moduloAdd1(Float)

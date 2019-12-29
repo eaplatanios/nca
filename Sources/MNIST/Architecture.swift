@@ -115,8 +115,7 @@ public struct ConvolutionalArchitecture: Architecture {
     self.genTransposedConv2 = TransposedConv2D<Float>(
       filterShape: (5, 5, 3, 32),
       strides: (2, 2),
-      padding: .same,
-      activation: sigmoid)
+      padding: .same)
     let reasoningLayerBase = Dense<Float>(
       inputSize: hiddenSize,
       outputSize: hiddenSize,
@@ -153,7 +152,8 @@ public struct ConvolutionalArchitecture: Architecture {
   @differentiable
   public func generateImage(reasoningOutput: Tensor<Float>) -> Tensor<Float> {
     let transformed = reasoningOutput.sequenced(through: genFC1, genFC2, genReshape)
-    return transformed.sequenced(through: genTransposedConv1, genTransposedConv2)
+    let images = transformed.sequenced(through: genTransposedConv1, genTransposedConv2)
+    return softmax(images)
   }
 
   @differentiable
