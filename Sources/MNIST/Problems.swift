@@ -20,7 +20,7 @@ public enum Modality {
 
 public enum Problem {
   case identity
-  case moduloAdd1(Int)
+  case moduloAdd1(Float)
   indirect case inverse(Problem)
 }
 
