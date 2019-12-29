@@ -24,6 +24,9 @@ public typealias ParameterInitializer<Scalar: TensorFlowScalar> = (TensorShape) 
 public typealias Activation<Scalar: TensorFlowFloatingPoint> =
   @differentiable (Tensor<Scalar>) -> Tensor<Scalar>
 
+@differentiable(where Scalar: TensorFlowFloatingPoint)
+public func identity<Scalar>(_ value: Tensor<Scalar>) -> Tensor<Scalar> { value }
+
 public protocol Serializable {
   init(fromFile fileURL: URL) throws
   func save(toFile fileURL: URL) throws

@@ -19,8 +19,8 @@ where TangentVector: KeyPathIterable {
   associatedtype ProblemCompiler: NCA.ProblemCompiler
   associatedtype TextPerception: TextPerceptionModule
 
-  var problemCompiler: ProblemCompiler { get set }
-  var textPerception: TextPerception { get set }
+  @differentiable var problemCompiler: ProblemCompiler { get set }
+  @differentiable var textPerception: TextPerception { get set }
 
   @differentiable
   func perceive(text: TextBatch) -> Tensor<Float>

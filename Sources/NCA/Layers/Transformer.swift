@@ -273,18 +273,18 @@ public struct TransformerEncoderLayer: Layer, Regularizable { // <Scalar: Tensor
       keyBiasInitializer: keyBiasInitializer,
       valueWeightInitializer: valueWeightInitializer,
       valueBiasInitializer: valueBiasInitializer)
-    self.hiddenDropout = Dropout<Scalar>(probability: hiddenDropoutProbability)
+    self.hiddenDropout = Dropout(probability: hiddenDropoutProbability)
     self.attentionWeight = attentionWeightInitializer(
       [attentionHeadCount * hiddenSize / attentionHeadCount, hiddenSize])
     self.attentionBias = attentionBiasInitializer([hiddenSize])
-    self.attentionLayerNormalization = LayerNormalization<Scalar>(
+    self.attentionLayerNormalization = LayerNormalization(
       featureCount: hiddenSize,
       axis: -1)
     self.intermediateWeight = intermediateWeightInitializer([hiddenSize, intermediateSize])
     self.intermediateBias = intermediateBiasInitializer([intermediateSize])
     self.outputWeight = intermediateWeightInitializer([intermediateSize, hiddenSize])
     self.outputBias = intermediateBiasInitializer([hiddenSize])
-    self.outputLayerNormalization = LayerNormalization<Scalar>(featureCount: hiddenSize, axis: -1)
+    self.outputLayerNormalization = LayerNormalization(featureCount: hiddenSize, axis: -1)
   }
 
   @differentiable

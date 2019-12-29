@@ -1,4 +1,4 @@
-// Copyright 2019, Emmanouil Antonios Platanios. All Rights Reserved.
+// Copyright 2020, Emmanouil Antonios Platanios. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not
 // use this file except in compliance with the License. You may obtain a copy of
@@ -42,13 +42,9 @@ public struct ContextualizedInput<Input: Differentiable, Context: Differentiable
 public struct ContextualizedLayer<
   Base: Layer,
   Generator: Layer
->: Layer, Regularizable where Generator.Output == Tensor<Float> {
+>: Layer, Differentiable where Generator.Output == Tensor<Float> {
   @noDerivative public let base: Base
   public var generator: Generator
-
-  public var regularizationValue: TangentVector {
-    TangentVector.zero
-  }
 
   public init(base: Base, generator: Generator) {
     self.base = base

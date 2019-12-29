@@ -46,7 +46,7 @@ public struct CoLA: Task {
     let problem = self.problem
     let concepts = self.concepts
     return withLearningPhase(.training) {
-      let (loss, gradient) = architecture.valueWithGradient {
+      let (loss, gradient) = valueWithGradient(at: architecture) {
         softmaxCrossEntropy(
           logits: $0.classify(input, problem: problem, concepts: concepts),
           labels: labels,

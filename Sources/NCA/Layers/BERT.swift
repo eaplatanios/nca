@@ -294,12 +294,12 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // Compute the input embeddings and apply layer normalization and dropout on them.
     let tokenEmbeddings = tokenEmbedding(input.tokenIds)
     let tokenTypeEmbeddings = tokenTypeEmbedding(input.tokenTypeIds)
-    let positionPaddingIndex = withoutDerivative(at: { () -> Int in
+    let positionPaddingIndex = { [variant] () -> Int in
       switch variant {
-      case .bert, .albert: return 0
-      case .roberta: return 2
+        case .bert, .albert: return 0
+        case .roberta: return 2
       }
-    }())
+    }()
     let positionEmbeddings = positionEmbedding.embeddings.slice(
       lowerBounds: [positionPaddingIndex, 0],
       upperBounds: [positionPaddingIndex + sequenceLength, -1]
@@ -332,7 +332,7 @@ public struct BERT: TextPerceptionModule { // <Scalar: TensorFlowFloatingPoint &
     // Run the stacked transformer.
     switch variant {
     case .bert, .roberta:
-      for layerIndex in 0..<withoutDerivative(at: encoderLayers) { $0.count } {
+      for layerIndex in 0..<withoutDerivative(at: encoderLayers, in: { $0.count }) {
         transformerInput = encoderLayers[layerIndex](TransformerInput(
           sequence: transformerInput,
           attentionMask: attentionMask,

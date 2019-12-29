@@ -14,6 +14,31 @@
 
 import TensorFlow
 
+// @inlinable
+// @differentiable(vjp: _vjpGelu)
+// public func gelu<T: TensorFlowFloatingPoint>(_ x: Tensor<T>) -> Tensor<T> {
+//   let ratio = Tensor<T>(0.7978845608) // An approximation of √(2/π).
+//   // An approximation of the Gauss error function.
+//   // NOTE: This is needed because the compiler otherwise gives an "unable to type-check this
+//   // in reasonable time" error when the below expressions are written on a single line.
+//   let approximateErf = tanh(ratio * (x + 0.044715 * pow(x, 3)))
+//   let cdf = 0.5 * (1.0 + approximateErf)
+//   return x * cdf
+// }
+
+// @inlinable
+// internal func _vjpGelu<T: TensorFlowFloatingPoint>(
+//   _ x: Tensor<T>
+// ) -> (Tensor<T>, (Tensor<T>) -> Tensor<T>) {
+//   (gelu(x), { v in
+//     let alpha = Tensor<T>(0.7978845608)
+//     let beta = alpha * 0.134145
+//     let y = tanh(alpha * (x + 0.044715 * pow(x, 3)))
+//     let temp = x * (1 - y.squared()) * (alpha + beta * x.squared())
+//     return (temp + 1 + y) * 0.5 * v
+//   })
+// }
+
 extension Tensor {
   /// Returns this tensor reshaped to a matrix (i.e., a rank-2 tensor).
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)

@@ -35,31 +35,31 @@ public protocol ProblemCompiler: Regularizable {
   var problemEmbeddingSize: Int { get }
   var conceptEmbeddingSize: Int { get }
 
-  @differentiable(wrt: self)
+  @differentiable
   func compile(problem: Problem) -> Tensor<Float>
 
-  @differentiable(wrt: self)
+  @differentiable
   func compile(concept: Concept) -> Tensor<Float>
 }
 
 extension ProblemCompiler {
-  @differentiable(wrt: self, vjp: _vjpCompile(concepts:))
+  @differentiable
   public func compile(concepts: [Concept]) -> [Tensor<Float>] {
     concepts.map(compile(concept:))
   }
 
   @usableFromInline
-  internal func _vjpCompile(
-    concepts: [Concept]
-  ) -> ([Tensor<Float>], (Array<Tensor<Float>>.TangentVector) -> TangentVector) {
+  @derivative(of: compile(concepts:), wrt: self)
+  internal func _vjpCompile(concepts: [Concept]) -> (
+    value: [Tensor<Float>],
+    pullback: (Array<Tensor<Float>>.TangentVector) -> TangentVector
+  ) {
     var values = [Tensor<Float>]()
     var pullbacks = [(Tensor<Float>) -> TangentVector]()
     values.reserveCapacity(concepts.count)
     pullbacks.reserveCapacity(concepts.count)
     for concept in concepts {
-      let (value, pullback) = self.valueWithPullback { compiler in
-        compiler.compile(concept: concept)
-      }
+      let (value, pullback) = Swift.valueWithPullback(at: self) { $0.compile(concept: concept) }
       values.append(value)
       pullbacks.append(pullback)
     }
@@ -154,7 +154,7 @@ public struct SimpleProblemCompiler: ProblemCompiler, KeyPathIterable {
       generator: conceptModifierGenerator)
   }
 
-  @differentiable(wrt: self)
+  @differentiable
   public func compile(problem: Problem) -> Tensor<Float> {
     switch problem {
     case let .classify(concepts):
@@ -180,7 +180,7 @@ public struct SimpleProblemCompiler: ProblemCompiler, KeyPathIterable {
     }
   }
 
-  @differentiable(wrt: self)
+  @differentiable
   public func compile(concept: Concept) -> Tensor<Float> {
     switch concept {
     case .grammar: return conceptEmbeddings[0].expandingShape(at: 0)

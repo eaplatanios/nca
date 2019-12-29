@@ -8,7 +8,8 @@ let package = Package(
   platforms: [.macOS(.v10_13)],
   products: [
     .library(name: "NCA", targets: ["NCA"]),
-    .executable(name: "Experiments", targets: ["Experiments"])
+    .executable(name: "Experiments", targets: ["Experiments"]),
+    .executable(name: "MNIST", targets: ["MNIST"]),
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
@@ -19,6 +20,7 @@ let package = Package(
   targets: [
     .target(name: "NCA", dependencies: ["Logging", "Progress", "SwiftProtobuf"]),
     .target(name: "Experiments", dependencies: ["NCA"]),
+    .target(name: "MNIST", dependencies: ["Logging", "Progress"]),
     .testTarget(name: "NCATests", dependencies: ["NCA"])
   ]
 )
