@@ -38,7 +38,7 @@ let problemCompiler = LinearProblemCompiler(
   problemEmbeddingSize: 4,
   initializerStandardDeviation: 0.02)
 var architecture = ConvolutionalArchitecture(
-  hiddenSize: 4,
+  hiddenSize: 16,
   problemCompiler: problemCompiler,
   initializerStandardDeviation: 0.02)
 var optimizer = Adam(
@@ -57,7 +57,7 @@ func evaluate() {
 let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
 print("Initial Evaluation: \(result)")
 var loss: Float = 0
-for step in 0..<10000 {
+for step in 0..<100000 {
   loss += tasks[0].update(architecture: &architecture, using: &optimizer)
   loss += tasks[1].update(architecture: &architecture, using: &optimizer)
   loss += tasks[2].update(architecture: &architecture, using: &optimizer)
