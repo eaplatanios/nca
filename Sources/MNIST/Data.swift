@@ -51,10 +51,11 @@ public struct MNISTDataset: Dataset {
   public let numbers: [Number]
   public let partitions: [Partition: [Int]]
   public let numberImageIndices: [Partition: [Float: [Int]]]
+  public let randomizedTestLabels: Bool
 
   public var exampleCount: Int { images.count }
 
-  public init(taskDirectoryURL: URL) throws {
+  public init(taskDirectoryURL: URL, randomizedTestLabels: Bool = false) throws {
     self.directoryURL = taskDirectoryURL.appendingPathComponent("MNIST")
     
     let dataURL = directoryURL.appendingPathComponent("data")
@@ -87,7 +88,13 @@ public struct MNISTDataset: Dataset {
     let trnImages = [UInt8](try Data(contentsOf: extractedDataLocalURLs[0])).dropFirst(16)
     let trnLabels = [UInt8](try Data(contentsOf: extractedDataLocalURLs[1])).dropFirst(8)
     let tstImages = [UInt8](try Data(contentsOf: extractedDataLocalURLs[2])).dropFirst(16)
-    let tstLabels = [UInt8](try Data(contentsOf: extractedDataLocalURLs[3])).dropFirst(8)
+    var tstLabels = [UInt8](try Data(contentsOf: extractedDataLocalURLs[3])).dropFirst(8)
+
+    if randomizedTestLabels {
+      for i in tstLabels.indices {
+        tstLabels[i] = .random(in: 0...9)
+      }
+    }
 
     // Initialize this dataset instance.
     let exampleCount = trnLabels.count + tstLabels.count
@@ -106,6 +113,7 @@ public struct MNISTDataset: Dataset {
     self.numberImageIndices = self.partitions.mapValues { [numbers] indices in
       [Float: [Int]](grouping: indices, by: { numbers[$0] })
     }
+    self.randomizedTestLabels = randomizedTestLabels
   }
 }
 
@@ -123,10 +131,11 @@ public struct CIFAR10Dataset: Dataset {
   public let numbers: [Number]
   public let partitions: [Partition: [Int]]
   public let numberImageIndices: [Partition: [Float: [Int]]]
+  public let randomizedTestLabels: Bool
 
   public var exampleCount: Int { images.count }
 
-  public init(taskDirectoryURL: URL) throws {
+  public init(taskDirectoryURL: URL, randomizedTestLabels: Bool = false) throws {
     self.directoryURL = taskDirectoryURL.appendingPathComponent("CIFAR")
     
     let dataURL = directoryURL.appendingPathComponent("data")
@@ -161,6 +170,12 @@ public struct CIFAR10Dataset: Dataset {
       }
     }
 
+    if randomizedTestLabels {
+      for i in 50000..<60000 {
+        labels[i] = .random(in: 0...9)
+      }
+    }
+
     // Initialize this dataset instance.
     let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
     let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
@@ -179,6 +194,7 @@ public struct CIFAR10Dataset: Dataset {
     self.numberImageIndices = self.partitions.mapValues { [numbers] indices in
       [Float: [Int]](grouping: indices, by: { numbers[$0] })
     }
+    self.randomizedTestLabels = randomizedTestLabels
   }
 }
 
