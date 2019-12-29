@@ -28,13 +28,16 @@ print("#Train: \(dataset.partitions[.train]!.count)")
 print("#Test: \(dataset.partitions[.test]!.count)")
 
 var tasks = [
-  Task(srcModality: .image, tgtModality: .number, problem: .identity, dataset: dataset)]
+  Task(srcModality: .image, tgtModality: .number, problem: .identity, dataset: dataset),
+  Task(srcModality: .number, tgtModality: .image, problem: .identity, dataset: dataset),
+  Task(srcModality: .image, tgtModality: .image, problem: .identity, dataset: dataset),
+  Task(srcModality: .number, tgtModality: .number, problem: .identity, dataset: dataset)]
 
 let problemCompiler = LinearProblemCompiler(
   problemEmbeddingSize: 4,
   initializerStandardDeviation: 0.02)
 var architecture = ConvolutionalArchitecture(
-  hiddenSize: 4,
+  hiddenSize: 8,
   problemCompiler: problemCompiler,
   initializerStandardDeviation: 0.02)
 var optimizer = Adam(
@@ -53,8 +56,11 @@ func evaluate() {
 let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
 print("Initial Evaluation: \(result)")
 var loss: Float = 0
-for step in 0..<10000 {
+for step in 0..<100000 {
   loss += tasks[0].update(architecture: &architecture, using: &optimizer)
+  loss += tasks[1].update(architecture: &architecture, using: &optimizer)
+  loss += tasks[2].update(architecture: &architecture, using: &optimizer)
+  loss += tasks[3].update(architecture: &architecture, using: &optimizer)
   // if step % 10 == 0 {
   //   print("Step \(step) Loss: \(loss / 10)")
   //   loss = 0
