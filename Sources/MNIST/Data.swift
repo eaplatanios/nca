@@ -159,10 +159,10 @@ public struct CIFAR10Dataset: Dataset {
     let filesURL = extractedDirectoryURL.appendingPathComponent("cifar-10-batches-bin")
     var imageBytes = [UInt8]()
     var labels = [Int64]()
-    let imageCount = 10000
     let imageByteCount = 3073
     for file in files {
       let fileContents = try! Data(contentsOf: filesURL.appendingPathComponent(file))
+      let imageCount = fileContents.count / imageByteCount
       for imageIndex in 0..<imageCount {
         let baseAddress = imageIndex * imageByteCount
         imageBytes.append(contentsOf: fileContents[(baseAddress + 1)..<(baseAddress + 3073)])
@@ -180,9 +180,7 @@ public struct CIFAR10Dataset: Dataset {
     let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
     let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
     self.images = { () -> [Tensor<Float>] in
-      var images = Tensor<Float>(Tensor<UInt8>(
-        shape: [6 * imageCount, 3, 32, 32],
-        scalars: imageBytes))
+      var images = Tensor<Float>(Tensor<UInt8>(shape: [60000, 3, 32, 32], scalars: imageBytes))
       images = images[0..., 0..., 2..<30, 2..<30]           // Crop to 28x28.
       images = images.transposed(permutation: [0, 2, 3, 1]) // Transpose to NHWC format.
       images /= 255
@@ -226,16 +224,14 @@ public struct CIFAR100Dataset: Dataset {
     }
 
     // Load the data file into arrays.
-    let files = [
-      "data_batch_1.bin", "data_batch_2.bin", "data_batch_3.bin",
-      "data_batch_4.bin", "data_batch_5.bin", "test_batch.bin"]
+    let files = ["train.bin", "test.bin"]
     let filesURL = extractedDirectoryURL.appendingPathComponent("cifar-100-binary")
     var imageBytes = [UInt8]()
     var labels = [Int64]()
-    let imageCount = 10000
     let imageByteCount = 3074
     for file in files {
       let fileContents = try! Data(contentsOf: filesURL.appendingPathComponent(file))
+      let imageCount = fileContents.count / imageByteCount
       for imageIndex in 0..<imageCount {
         let baseAddress = imageIndex * imageByteCount
         imageBytes.append(contentsOf: fileContents[(baseAddress + 2)..<(baseAddress + 3074)])
@@ -253,9 +249,7 @@ public struct CIFAR100Dataset: Dataset {
     let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
     let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
     self.images = { () -> [Tensor<Float>] in
-      var images = Tensor<Float>(Tensor<UInt8>(
-        shape: [6 * imageCount, 3, 32, 32],
-        scalars: imageBytes))
+      var images = Tensor<Float>(Tensor<UInt8>(shape: [60000, 3, 32, 32], scalars: imageBytes))
       images = images[0..., 0..., 2..<30, 2..<30]           // Crop to 28x28.
       images = images.transposed(permutation: [0, 2, 3, 1]) // Transpose to NHWC format.
       images /= 255
