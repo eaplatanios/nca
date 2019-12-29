@@ -96,7 +96,7 @@ public struct ConvolutionalArchitecture: Architecture {
     self.problemCompiler = problemCompiler
     self.numberEmbeddings = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(initializerStandardDeviation)
-    )([100, hiddenSize])
+    )([10, hiddenSize])
     self.percConv1 = Conv2D<Float>(filterShape: (5, 5, 3, 32), padding: .same, activation: gelu)
     self.percPool1 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
     self.percConv2 = Conv2D<Float>(filterShape: (5, 5, 32, 64), padding: .same, activation: gelu)
