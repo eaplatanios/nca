@@ -57,22 +57,22 @@ public struct Task {
       .map { index -> Example in
         let srcNumber = dataset.numbers[index]
         let tgtNumber = target(for: srcNumber, problem: problem)
-        let input = { () -> Tensor<UInt8> in
+        let input = { () -> Tensor<Float> in
           switch (srcModality) {
           case .image: return dataset.images[index]
-          case .number: return Tensor<UInt8>(dataset.numbers[index])
+          case .number: return Tensor<Float>(dataset.numbers[index])
           }
         }()
-        let output = { () -> Tensor<UInt8> in
+        let output = { () -> Tensor<Float> in
           switch (tgtModality) {
           case .image:
             let exampleIndices = dataset.numberImageIndices[.train]![tgtNumber]!
             // TODO: !!!
             // let index = exampleIndices.randomElement(using: &generator)!
             let index = exampleIndices.randomElement()!
-            return Tensor<UInt8>(dataset.numbers[index])
+            return Tensor<Float>(dataset.images[index])
           case .number:
-            return Tensor<UInt8>(tgtNumber)
+            return Tensor<Float>(tgtNumber)
           }
         }()
         return Example(input: input, output: output)
@@ -98,7 +98,7 @@ public struct Task {
           return valueWithGradient(at: architecture) {
             l2Loss(
               predicted: $0.generateImage(forImage: batch.input, problem: problem),
-              expected: Tensor<Float>(batch.output) / 255.0,
+              expected: batch.output,
               reduction: { $0.mean() })
           }
         case (.image, .number):
@@ -112,7 +112,7 @@ public struct Task {
           return valueWithGradient(at: architecture) {
             l2Loss(
               predicted: $0.generateImage(forNumber: batch.input, problem: problem),
-              expected: Tensor<Float>(batch.output) / 255.0,
+              expected: batch.output,
               reduction: { $0.mean() })
           }
         case (.number, .number):
@@ -130,12 +130,12 @@ public struct Task {
   }
 }
 
-internal func target(for source: UInt8, problem: Problem) -> UInt8 {
+internal func target(for source: Float, problem: Problem) -> Float {
   switch (problem) {
     case .identity: return source
-    case .moduloAdd1: return (source + 1) % 10
+    case .moduloAdd1: return (source + 1).truncatingRemainder(dividingBy: 10)
     case .inverse(.identity): return source
-    case .inverse(.moduloAdd1): return (source - 1) % 10
+    case .inverse(.moduloAdd1): return (source - 1).truncatingRemainder(dividingBy: 10)
     case let .inverse(.inverse(baseProblem)): return target(for: source, problem: baseProblem)
   }
 }

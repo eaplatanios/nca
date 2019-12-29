@@ -22,11 +22,11 @@ where TangentVector: KeyPathIterable {
 
   /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  func perceive(image: Tensor<UInt8>) -> Tensor<Float>
+  func perceive(image: Tensor<Float>) -> Tensor<Float>
 
   /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  func perceive(number: Tensor<UInt8>) -> Tensor<Float>
+  func perceive(number: Tensor<Float>) -> Tensor<Float>
 
   @differentiable
   func reason(over input: Tensor<Float>, context: Tensor<Float>) -> Tensor<Float>
@@ -40,28 +40,28 @@ where TangentVector: KeyPathIterable {
 
 extension Architecture {
   // @differentiable
-  public func generateImage(forImage image: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateImage(forImage image: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(image: image), context: context)
     return generateImage(reasoningOutput: latent)
   }
 
   // @differentiable
-  public func generateImage(forNumber number: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateImage(forNumber number: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(number: number), context: context)
     return generateImage(reasoningOutput: latent)
   }
 
   // @differentiable
-  public func generateNumber(forImage image: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateNumber(forImage image: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(image: image), context: context)
     return generateNumber(reasoningOutput: latent)
   }
 
   // @differentiable
-  public func generateNumber(forNumber number: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateNumber(forNumber number: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(number: number), context: context)
     return generateNumber(reasoningOutput: latent)
@@ -97,23 +97,23 @@ public struct ConvolutionalArchitecture: Architecture {
     self.numberEmbeddings = truncatedNormalInitializer(
       standardDeviation: Tensor<Float>(initializerStandardDeviation)
     )([10, hiddenSize])
-    self.percConv1 = Conv2D<Float>(filterShape: (5, 5, 1, 32), padding: .same, activation: relu)
+    self.percConv1 = Conv2D<Float>(filterShape: (5, 5, 3, 32), padding: .same, activation: relu)
     self.percPool1 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
-    self.percConv2 = Conv2D<Float>(filterShape: (5, 5, 32, 64), activation: relu)
+    self.percConv2 = Conv2D<Float>(filterShape: (5, 5, 32, 64), padding: .same, activation: relu)
     self.percPool2 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
     self.percFlatten = Flatten<Float>()
-    self.percFC1 = Dense<Float>(inputSize: 5 * 5 * 64, outputSize: 1024, activation: relu)
+    self.percFC1 = Dense<Float>(inputSize: 7 * 7 * 64, outputSize: 1024, activation: relu)
     self.percFC2 = Dense<Float>(inputSize: 1024, outputSize: hiddenSize)
     self.genFC1 = Dense<Float>(inputSize: hiddenSize, outputSize: 1024, activation: relu)
-    self.genFC2 = Dense<Float>(inputSize: 1024, outputSize: 5 * 5 * 64, activation: relu)
-    self.genReshape = Reshape<Float>(shape: [-1, 5, 5, 64])
+    self.genFC2 = Dense<Float>(inputSize: 1024, outputSize: 7 * 7 * 64, activation: relu)
+    self.genReshape = Reshape<Float>(shape: [-1, 7, 7, 64])
     self.genTransposedConv1 = TransposedConv2D<Float>(
       filterShape: (5, 5, 32, 64),
       strides: (2, 2),
       padding: .same,
       activation: relu)
     self.genTransposedConv2 = TransposedConv2D<Float>(
-      filterShape: (5, 5, 1, 32),
+      filterShape: (5, 5, 3, 32),
       strides: (2, 2),
       padding: .same,
       activation: sigmoid)
@@ -133,16 +133,16 @@ public struct ConvolutionalArchitecture: Architecture {
 
   /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  public func perceive(image: Tensor<UInt8>) -> Tensor<Float> {
-    let image = Tensor<Float>(image) / 255.0
+  public func perceive(image: Tensor<Float>) -> Tensor<Float> {
     let convolved = image.sequenced(through: percConv1, percPool1, percConv2, percPool2)
     return convolved.sequenced(through: percFlatten, percFC1, percFC2)
   }
 
   /// - Returns: Tensor with shape `[batchSize, hiddenSize]`.
   @differentiable
-  public func perceive(number: Tensor<UInt8>) -> Tensor<Float> {
-    numberEmbeddings.gathering(atIndices: Tensor<Int32>(number))
+  public func perceive(number: Tensor<Float>) -> Tensor<Float> {
+    let indices = withoutDerivative(at: number, in: Tensor<Int32>.init)
+    return numberEmbeddings.gathering(atIndices: indices)
   }
 
   @differentiable
@@ -164,28 +164,28 @@ public struct ConvolutionalArchitecture: Architecture {
 
 extension ConvolutionalArchitecture {
   @differentiable
-  public func generateImage(forImage image: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateImage(forImage image: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(image: image), context: context)
     return generateImage(reasoningOutput: latent)
   }
 
   @differentiable
-  public func generateImage(forNumber number: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateImage(forNumber number: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(number: number), context: context)
     return generateImage(reasoningOutput: latent)
   }
 
   @differentiable
-  public func generateNumber(forImage image: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateNumber(forImage image: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(image: image), context: context)
     return generateNumber(reasoningOutput: latent)
   }
 
   @differentiable
-  public func generateNumber(forNumber number: Tensor<UInt8>, problem: Problem) -> Tensor<Float> {
+  public func generateNumber(forNumber number: Tensor<Float>, problem: Problem) -> Tensor<Float> {
     let context = problemCompiler.compile(problem: problem)
     let latent = reason(over: perceive(number: number), context: context)
     return generateNumber(reasoningOutput: latent)

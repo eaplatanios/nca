@@ -24,13 +24,13 @@ extension Task {
     if tgtModality != .number { return [:] }
 
     func exampleMap(_ index: Int) -> Example {
-      let input = { () -> Tensor<UInt8> in
+      let input = { () -> Tensor<Float> in
         switch (srcModality) {
         case .image: return dataset.images[index]
-        case .number: return Tensor<UInt8>(dataset.numbers[index])
+        case .number: return Tensor<Float>(dataset.numbers[index])
         }
       }()
-      let output = Tensor<UInt8>(target(for: dataset.numbers[index], problem: problem))
+      let output = Tensor<Float>(target(for: dataset.numbers[index], problem: problem))
       return Example(input: input, output: output)
     }
 
@@ -52,7 +52,8 @@ extension Task {
           .argmax(squeezingAxis: -1))
         }
       }()
-      correctCount += Int(Tensor<Int32>(predictions .== batch.output).sum().scalarized())
+      let correct = Tensor<Int32>(predictions .== Tensor<UInt8>(batch.output))
+      correctCount += Int(correct.sum().scalarized())
       totalCount += predictions.shape[0]
     }
     return ["acccuracy": Float(correctCount) / Float(totalCount)]

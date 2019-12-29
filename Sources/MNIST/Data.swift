@@ -16,42 +16,43 @@ import Foundation
 import Progress
 import TensorFlow
 
-public typealias Number = UInt8
-public typealias Image = Tensor<UInt8>
+public typealias Number = Float
+public typealias Image = Tensor<Float>
 
 public enum Partition: Hashable {
   case train, test
 }
 
 public struct Example: KeyPathIterable {
-  public var input: Tensor<UInt8>
-  public var output: Tensor<UInt8>
+  public var input: Tensor<Float>
+  public var output: Tensor<Float>
 
-  public init(input: Tensor<UInt8>, output: Tensor<UInt8>) {
+  public init(input: Tensor<Float>, output: Tensor<Float>) {
     self.input = input
     self.output = output
   }
 }
 
-public struct Dataset {
+public protocol Dataset {
+  var images: [Image] { get }
+  var numbers: [Number] { get }
+  var partitions: [Partition: [Int]] { get }
+  var numberImageIndices: [Partition: [Float: [Int]]] { get }
+  var exampleCount: Int { get }
+}
+
+//===------------------------------------------------------------------------------------------===//
+// MNIST
+//===------------------------------------------------------------------------------------------===//
+
+public struct MNISTDataset: Dataset {
   public let directoryURL: URL
   public let images: [Image]
   public let numbers: [Number]
   public let partitions: [Partition: [Int]]
-  public let numberImageIndices: [Partition: [UInt8: [Int]]]
+  public let numberImageIndices: [Partition: [Float: [Int]]]
 
   public var exampleCount: Int { images.count }
-
-  // public lazy var standardTstExamples: [Example] {
-  //   let tstIndices = dataset.partitions[.test]!
-  //   let tstImages = Tensor<UInt8>(stacking: tstIndices.map { dataset.images[$0] })
-  //   let tstNumbers = Tensor<UInt8>(stacking: tstExamples.map { dataset.numbers[$0] })
-  //   tstIndices.map {
-  //     Example(
-  //       input: Tensor<UInt8>(dataset.images[$0]),
-  //       output: Tensor<UInt8>(dataset.numbers[$0]))
-  //   }
-  // }
 
   public init(taskDirectoryURL: URL) throws {
     self.directoryURL = taskDirectoryURL.appendingPathComponent("MNIST")
@@ -90,16 +91,93 @@ public struct Dataset {
 
     // Initialize this dataset instance.
     let exampleCount = trnLabels.count + tstLabels.count
-    self.images = Tensor(
-      shape: [trnLabels.count + tstLabels.count, 28, 28, 1],
-      scalars: trnImages + tstImages
-    ).unstacked(alongAxis: 0)
-    self.numbers = [UInt8](trnLabels + tstLabels)
+    self.images = { () -> [Tensor<Float>] in
+      var images = Tensor<Float>(Tensor<UInt8>(
+        shape: [trnLabels.count + tstLabels.count, 28, 28, 1],
+        scalars: trnImages + tstImages))
+      images = images.tiled(multiples: [1, 1, 1, 3])
+      images /= 255
+      return images.unstacked(alongAxis: 0)
+    }()
+    self.numbers = [UInt8](trnLabels + tstLabels).map(Float.init)
     self.partitions = [
       .train: [Int](0..<trnLabels.count),
       .test: [Int](trnLabels.count..<exampleCount)]
     self.numberImageIndices = self.partitions.mapValues { [numbers] indices in
-      [UInt8: [Int]](grouping: indices, by: { numbers[$0] })
+      [Float: [Int]](grouping: indices, by: { numbers[$0] })
+    }
+  }
+}
+
+//===------------------------------------------------------------------------------------------===//
+// CIFAR
+//===------------------------------------------------------------------------------------------===//
+
+public enum CIFARLabel: UInt8 {
+  case airplane = 0, automobile, bird, cat, deer, dog, frog, horse, ship, truck
+}
+
+public struct CIFAR10Dataset: Dataset {
+  public let directoryURL: URL
+  public let images: [Image]
+  public let numbers: [Number]
+  public let partitions: [Partition: [Int]]
+  public let numberImageIndices: [Partition: [Float: [Int]]]
+
+  public var exampleCount: Int { images.count }
+
+  public init(taskDirectoryURL: URL) throws {
+    self.directoryURL = taskDirectoryURL.appendingPathComponent("CIFAR")
+    
+    let dataURL = directoryURL.appendingPathComponent("data")
+    let compressedDataLocalURL = dataURL.appendingPathComponent("cifar-10-binary.tar.gz")
+    
+    // Download the data, if necessary.
+    let compressedDataRemoteURL = URL(
+      string: String("https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz"))!
+    try maybeDownload(from: compressedDataRemoteURL, to: compressedDataLocalURL)
+
+    // Extract the data, if necessary.
+    let extractedDirectoryURL = dataURL.appendingPathComponent("cifar-10-binary")
+    if !FileManager.default.fileExists(atPath: extractedDirectoryURL.path) {
+      try extract(tarGZippedFileAt: compressedDataLocalURL, to: extractedDirectoryURL)
+    }
+
+    // Load the data file into arrays.
+    let files = [
+      "data_batch_1.bin", "data_batch_2.bin", "data_batch_3.bin",
+      "data_batch_4.bin", "data_batch_5.bin", "test_batch.bin"]
+    let filesURL = extractedDirectoryURL.appendingPathComponent("cifar-10-batches-bin")
+    var imageBytes = [UInt8]()
+    var labels = [Int64]()
+    let imageCount = 10000
+    let imageByteCount = 3073
+    for file in files {
+      let fileContents = try! Data(contentsOf: filesURL.appendingPathComponent(file))
+      for imageIndex in 0..<imageCount {
+        let baseAddress = imageIndex * imageByteCount
+        imageBytes.append(contentsOf: fileContents[(baseAddress + 1)..<(baseAddress + 3073)])
+        labels.append(Int64(fileContents[baseAddress]))
+      }
+    }
+
+    // Initialize this dataset instance.
+    let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
+    let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
+    self.images = { () -> [Tensor<Float>] in
+      var images = Tensor<Float>(Tensor<UInt8>(
+        shape: [6 * imageCount, 3, 32, 32],
+        scalars: imageBytes))
+      images = images[0..., 0..., 2..<30, 2..<30]           // Crop to 28x28.
+      images = images.transposed(permutation: [0, 2, 3, 1]) // Transpose to NHWC format.
+      images /= 255
+      images = (images - colorMean) / colorStd
+      return images.unstacked(alongAxis: 0)
+    }()
+    self.numbers = labels.map(Float.init)
+    self.partitions = [.train: [Int](0..<50000), .test: [Int](50000..<60000)]
+    self.numberImageIndices = self.partitions.mapValues { [numbers] indices in
+      [Float: [Int]](grouping: indices, by: { numbers[$0] })
     }
   }
 }
