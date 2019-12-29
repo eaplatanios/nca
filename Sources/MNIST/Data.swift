@@ -229,7 +229,7 @@ public struct CIFAR100Dataset: Dataset {
     let files = [
       "data_batch_1.bin", "data_batch_2.bin", "data_batch_3.bin",
       "data_batch_4.bin", "data_batch_5.bin", "test_batch.bin"]
-    let filesURL = extractedDirectoryURL.appendingPathComponent("cifar-100-batches-bin")
+    let filesURL = extractedDirectoryURL.appendingPathComponent("cifar-100-binary")
     var imageBytes = [UInt8]()
     var labels = [Int64]()
     let imageCount = 10000
