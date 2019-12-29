@@ -44,8 +44,10 @@ public struct Task {
     srcModality: Modality,
     tgtModality: Modality,
     problem: Problem,
-    dataset: Dataset
+    dataset: Dataset,
+    randomSeed: Int64 = 123456789
   ) {
+    var generator = PhiloxRandomNumberGenerator(seed: randomSeed)
     self.srcModality = srcModality
     self.tgtModality = tgtModality
     self.problem = problem
@@ -67,9 +69,7 @@ public struct Task {
           switch (tgtModality) {
           case .image:
             let exampleIndices = dataset.numberImageIndices[.train]![tgtNumber]!
-            // TODO: !!!
-            // let index = exampleIndices.randomElement(using: &generator)!
-            let index = exampleIndices.randomElement()!
+            let index = exampleIndices.randomElement(using: &generator)!
             return Tensor<Float>(dataset.images[index])
           case .number:
             return Tensor<Float>(tgtNumber)

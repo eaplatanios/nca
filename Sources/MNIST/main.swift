@@ -22,52 +22,50 @@ let tasksDir = tempDir.appendingPathComponent("tasks")
 // let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
 let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
 let batchSize = 32
+let randomSeed = Int64(123456789)
 
-var generator = PhiloxRandomNumberGenerator(seed: 123456789)
+withRandomSeedForTensorFlow(randomSeed) {
+  var tasks = [
+    Task(srcModality: .image, tgtModality: .number, problem: .identity, dataset: dataset, randomSeed: randomSeed),
+    Task(srcModality: .number, tgtModality: .image, problem: .identity, dataset: dataset, randomSeed: randomSeed),
+    Task(srcModality: .image, tgtModality: .image, problem: .identity, dataset: dataset, randomSeed: randomSeed),
+    Task(srcModality: .number, tgtModality: .number, problem: .identity, dataset: dataset, randomSeed: randomSeed)]
 
-print("#Train: \(dataset.partitions[.train]!.count)")
-print("#Test: \(dataset.partitions[.test]!.count)")
+  let problemCompiler = LinearProblemCompiler(
+    problemEmbeddingSize: 4,
+    initializerStandardDeviation: 0.02)
+  var architecture = ConvolutionalArchitecture(
+    hiddenSize: 16,
+    problemCompiler: problemCompiler,
+    initializerStandardDeviation: 0.02)
+  var optimizer = Adam(
+    for: architecture,
+    learningRate: 1e-3,
+    beta1: 0.9,
+    beta2: 0.99,
+    epsilon: 1e-8,
+    decay: 0)
 
-var tasks = [
-  Task(srcModality: .image, tgtModality: .number, problem: .identity, dataset: dataset),
-  Task(srcModality: .number, tgtModality: .image, problem: .identity, dataset: dataset),
-  Task(srcModality: .image, tgtModality: .image, problem: .identity, dataset: dataset),
-  Task(srcModality: .number, tgtModality: .number, problem: .identity, dataset: dataset)]
-
-let problemCompiler = LinearProblemCompiler(
-  problemEmbeddingSize: 4,
-  initializerStandardDeviation: 0.02)
-var architecture = ConvolutionalArchitecture(
-  hiddenSize: 16,
-  problemCompiler: problemCompiler,
-  initializerStandardDeviation: 0.02)
-var optimizer = Adam(
-  for: architecture,
-  learningRate: 1e-3,
-  beta1: 0.9,
-  beta2: 0.99,
-  epsilon: 1e-8,
-  decay: 0)
-
-func evaluate() {
-  let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
-  print(result)
-}
-
-let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
-print("Initial Evaluation: \(result)")
-var loss: Float = 0
-for step in 0..<100000 {
-  loss += tasks[0].update(architecture: &architecture, using: &optimizer)
-  loss += tasks[1].update(architecture: &architecture, using: &optimizer)
-  loss += tasks[2].update(architecture: &architecture, using: &optimizer)
-  loss += tasks[3].update(architecture: &architecture, using: &optimizer)
-  // if step % 10 == 0 {
-  //   print("Step \(step) Loss: \(loss / 10)")
-  //   loss = 0
-  // }
-  if step % 100 == 0 {
+  func evaluate() {
     let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
-    print("Step \(step) Evaluation: \(result)")
+    print(result)
+  }
+
+  let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
+  print("Initial Evaluation: \(result)")
+  var loss: Float = 0
+  for step in 0..<100000 {
+    loss += tasks[0].update(architecture: &architecture, using: &optimizer)
+    loss += tasks[1].update(architecture: &architecture, using: &optimizer)
+    loss += tasks[2].update(architecture: &architecture, using: &optimizer)
+    loss += tasks[3].update(architecture: &architecture, using: &optimizer)
+    // if step % 10 == 0 {
+    //   print("Step \(step) Loss: \(loss / 10)")
+    //   loss = 0
+    // }
+    if step % 100 == 0 {
+      let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
+      print("Step \(step) Evaluation: \(result)")
+    }
   }
 }
