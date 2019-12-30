@@ -19,24 +19,25 @@ let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let tempDir = currentDir.appendingPathComponent("temp")
 let tasksDir = tempDir.appendingPathComponent("tasks")
 
-// let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
-let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
+let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
+// let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
 // let dataset = try! CIFAR100Dataset(taskDirectoryURL: tasksDir)
 let batchSize = 32
 let randomSeed = Int64(123456789)
 
 withRandomSeedForTensorFlow(randomSeed) {
-  var tasks = [
-    Task(srcModality: .image, tgtModality: .number, problem: .identity, dataset: dataset, randomSeed: randomSeed),
-    Task(srcModality: .number, tgtModality: .image, problem: .identity, dataset: dataset, randomSeed: randomSeed),
-    Task(srcModality: .image, tgtModality: .image, problem: .identity, dataset: dataset, randomSeed: randomSeed),
-    Task(srcModality: .number, tgtModality: .number, problem: .identity, dataset: dataset, randomSeed: randomSeed)]
+  var tasks: [Task] = [
+    IdentityTask(srcModality: .image, tgtModality: .number, dataset: dataset, randomRotations: true, randomSeed: randomSeed),
+    IdentityTask(srcModality: .number, tgtModality: .image, dataset: dataset, randomRotations: true, randomSeed: randomSeed),
+    IdentityTask(srcModality: .image, tgtModality: .image, dataset: dataset, randomRotations: true, randomSeed: randomSeed),
+    IdentityTask(srcModality: .number, tgtModality: .number, dataset: dataset, randomRotations: true, randomSeed: randomSeed),
+    RotationTask(dataset: dataset, randomSeed: randomSeed)]
 
   let problemCompiler = LinearProblemCompiler(
     problemEmbeddingSize: 4,
     initializerStandardDeviation: 0.02)
   var architecture = ConvolutionalArchitecture(
-    hiddenSize: 16,
+    hiddenSize: 128,
     problemCompiler: problemCompiler,
     initializerStandardDeviation: 0.02)
   var optimizer = Adam(
@@ -47,26 +48,27 @@ withRandomSeedForTensorFlow(randomSeed) {
     epsilon: 1e-8,
     decay: 0.001)
 
-  func evaluate() {
-    let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
-    print(result)
+  func evaluate() -> [String: Float] {
+    (tasks[0] as! IdentityTask).evaluate(
+      architecture,
+      using: dataset,
+      batchSize: batchSize)
   }
 
-  let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
-  print("Initial Evaluation: \(result)")
+  print("Initial Evaluation: \(evaluate())")
   var loss: Float = 0
   for step in 0..<1000000 {
     loss += tasks[0].update(architecture: &architecture, using: &optimizer)
     loss += tasks[1].update(architecture: &architecture, using: &optimizer)
     loss += tasks[2].update(architecture: &architecture, using: &optimizer)
     loss += tasks[3].update(architecture: &architecture, using: &optimizer)
+    loss += tasks[4].update(architecture: &architecture, using: &optimizer)
     // if step % 10 == 0 {
     //   print("Step \(step) Loss: \(loss / 10)")
     //   loss = 0
     // }
     if step % 100 == 0 {
-      let result = tasks[0].evaluate(architecture, using: dataset, batchSize: batchSize)
-      print("Step \(step) Evaluation: \(result)")
+      print("Step \(step) Evaluation: \(evaluate())")
     }
   }
 }

@@ -14,7 +14,7 @@
 
 import TensorFlow
 
-extension Task {
+extension IdentityTask {
   public func evaluate<A: Architecture>(
     _ architecture: A,
     using dataset: Dataset,
@@ -30,7 +30,7 @@ extension Task {
         case .number: return Tensor<Float>(dataset.numbers[index])
         }
       }()
-      let output = Tensor<Float>(target(for: dataset.numbers[index], problem: problem))
+      let output = Tensor<Float>(dataset.numbers[index])
       return Example(input: input, output: output)
     }
 

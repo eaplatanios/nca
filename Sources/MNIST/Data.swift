@@ -23,16 +23,6 @@ public enum Partition: Hashable {
   case train, test
 }
 
-public struct Example: KeyPathIterable {
-  public var input: Tensor<Float>
-  public var output: Tensor<Float>
-
-  public init(input: Tensor<Float>, output: Tensor<Float>) {
-    self.input = input
-    self.output = output
-  }
-}
-
 public protocol Dataset {
   var images: [Image] { get }
   var numbers: [Number] { get }
@@ -103,7 +93,7 @@ public struct MNISTDataset: Dataset {
         shape: [trnLabels.count + tstLabels.count, 28, 28, 1],
         scalars: trnImages + tstImages))
       images = images.tiled(multiples: [1, 1, 1, 3])
-      images /= 255 * 3 // The factor of 3 is to account for the tiling in the previous step.
+      images /= 255
       return images.unstacked(alongAxis: 0)
     }()
     self.numbers = [UInt8](trnLabels + tstLabels).map(Float.init)
@@ -177,14 +167,14 @@ public struct CIFAR10Dataset: Dataset {
     }
 
     // Initialize this dataset instance.
-    let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
-    let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
+    // let colorMean = Tensor<Float>([0.485, 0.456, 0.406])
+    // let colorStd = Tensor<Float>([0.229, 0.224, 0.225])
     self.images = { () -> [Tensor<Float>] in
       var images = Tensor<Float>(Tensor<UInt8>(shape: [60000, 3, 32, 32], scalars: imageBytes))
       images = images[0..., 0..., 2..<30, 2..<30]           // Crop to 28x28.
       images = images.transposed(permutation: [0, 2, 3, 1]) // Transpose to NHWC format.
       images /= 255
-      images = (images - colorMean) / colorStd
+      // images = (images - colorMean) / colorStd
       return images.unstacked(alongAxis: 0)
     }()
     self.numbers = labels.map(Float.init)

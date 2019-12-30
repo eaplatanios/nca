@@ -9,13 +9,14 @@
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-// License for the specific language governing permissions and limitations under
+// License for the specific language governing permissions and limitation under
 // the License.
 
+import Foundation
 import Logging
 import TensorFlow
 
-internal let logger = Logger(label: "NCA-MNIST")
+internal let logger = Logger(label: "NCA")
 
 /// Returns a function that creates a tensor by initializing all its values randomly from a
 /// truncated Normal distribution. The generated values follow a Normal distribution with mean
@@ -401,4 +402,22 @@ extension KeyPathIterable {
     }
     return result
   }
+}
+
+//===------------------------------------------------------------------------------------------===//
+// Images
+//===------------------------------------------------------------------------------------------===//
+
+import Python
+
+// TODO: The Python interface is not thread-safe.
+internal let pythonDispatchSemaphore = DispatchSemaphore(value: 1)
+
+fileprivate let ndimage = Python.import("scipy.ndimage")
+
+internal func rotate(image: Tensor<Float>, degrees: Float) -> Tensor<Float> {
+  pythonDispatchSemaphore.wait()
+  defer { pythonDispatchSemaphore.signal() }
+  let rotated = ndimage.rotate(image.makeNumpyArray(), degrees, reshape: false)
+  return Tensor<Float>(numpy: rotated)!
 }

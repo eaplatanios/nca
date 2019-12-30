@@ -21,21 +21,122 @@ public enum Modality {
 // Transform colors (e.g., add/remove color to/from image).
 // Rotate image.
 
+// Perceptive
+// ----------
+// Rotation: Image => Image
+// ColorMap: Image => Image
+//
+// Reasoning
+// ---------
+// Identity
+// Addition
+//
+// Inverse??? (maybe should be treated as a functor?)
+
 public enum Problem {
   case identity
-  case moduloAdd1(Float)
-  indirect case inverse(Problem)
+  case rotation(Float)
+  case colorMap(Tensor<Float>)
+}
+
+//===------------------------------------------------------------------------------------------===//
+// Problem Compilers
+//===------------------------------------------------------------------------------------------===//
+
+public protocol ProblemCompiler: Differentiable {
+  var problemEmbeddingSize: Int { get }
+
+  @differentiable
+  func perceptionContext(forProblem problem: Problem) -> Tensor<Float>
+
+  @differentiable
+  func reasoningContext(forProblem problem: Problem) -> Tensor<Float>
+
+  @differentiable
+  func generationContext(forProblem problem: Problem) -> Tensor<Float>
+}
+
+public struct LinearProblemCompiler: ProblemCompiler {
+  @noDerivative public let problemEmbeddingSize: Int
+
+  public var identityEmbedding: Tensor<Float>
+  public var rotationEmbedding: Tensor<Float>
+  public var colorMapEmbedding: Tensor<Float>
+
+  public init(problemEmbeddingSize: Int, initializerStandardDeviation: Float = 0.02) {
+    self.problemEmbeddingSize = problemEmbeddingSize
+    let initializer = truncatedNormalInitializer(
+      standardDeviation: Tensor<Float>(initializerStandardDeviation))
+    self.identityEmbedding = initializer([1, problemEmbeddingSize])
+    self.rotationEmbedding = initializer([2, problemEmbeddingSize])
+    self.colorMapEmbedding = initializer([3, problemEmbeddingSize])
+  }
+
+  @differentiable
+  public func perceptionContext(forProblem problem: Problem) -> Tensor<Float> {
+    switch problem {
+    case .identity:
+      return identityEmbedding
+    case let .rotation(degrees):
+      return (rotationEmbedding[0] * degrees / 360 + rotationEmbedding[1]).rankLifted()
+    case let .colorMap(factors):
+      return matmul(factors.rankLifted(), colorMapEmbedding)
+    }
+  }
+
+  @differentiable
+  public func reasoningContext(forProblem problem: Problem) -> Tensor<Float> {
+    return identityEmbedding
+  }
+
+  @differentiable
+  public func generationContext(forProblem problem: Problem) -> Tensor<Float> {
+    switch problem {
+    case .identity:
+      return identityEmbedding
+    case let .rotation(degrees):
+      return (rotationEmbedding[0] * degrees / 360 + rotationEmbedding[1]).rankLifted()
+    case let .colorMap(factors):
+      return matmul(factors.rankLifted(), colorMapEmbedding)
+    }
+  }
 }
 
 //===------------------------------------------------------------------------------------------===//
 // Tasks
 //===------------------------------------------------------------------------------------------===//
 
-public struct Task {
+public protocol Task {
+  // mutating func update<A: Architecture, O: Optimizer>(
+  //   architecture: inout A,
+  //   using optimizer: inout O
+  // ) -> Float where O.Model == A
+  mutating func update<O: Optimizer>(
+    architecture: inout ConvolutionalArchitecture,
+    using optimizer: inout O
+  ) -> Float where O.Model == ConvolutionalArchitecture
+}
+
+public struct Example: KeyPathIterable {
+  public var input: Tensor<Float>
+  public var output: Tensor<Float>
+
+  public let degrees: Float
+
+  public init(input: Tensor<Float>, output: Tensor<Float>, degrees: Float = 0.0) {
+    self.input = input
+    self.output = output
+    self.degrees = degrees
+  }
+}
+
+public struct IdentityTask: Task {
   public let srcModality: Modality
   public let tgtModality: Modality
-  public let problem: Problem
   public let dataset: Dataset
+  public let randomRotations: Bool
+
+  public let problem: Problem = .identity
 
   private typealias ExampleIterator = IndexingIterator<Array<Int>>
   private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
@@ -46,26 +147,33 @@ public struct Task {
   public init(
     srcModality: Modality,
     tgtModality: Modality,
-    problem: Problem,
     dataset: Dataset,
+    randomRotations: Bool = false,
     randomSeed: Int64 = 123456789
   ) {
     var generator = PhiloxRandomNumberGenerator(seed: randomSeed)
     self.srcModality = srcModality
     self.tgtModality = tgtModality
-    self.problem = problem
     self.dataset = dataset
+    self.randomRotations = randomRotations
     self.trnExamplesIterator = dataset.partitions[.train]!
       .makeIterator()
       .repeated()
       .shuffled(bufferSize: 1000)
       .map { index -> Example in
         let srcNumber = dataset.numbers[index]
-        let tgtNumber = target(for: srcNumber, problem: problem)
+        let tgtNumber = srcNumber
         let input = { () -> Tensor<Float> in
           switch (srcModality) {
-          case .image: return dataset.images[index]
-          case .number: return Tensor<Float>(dataset.numbers[index])
+          case .image:
+            if randomRotations {
+              let degrees = Float.random(in: 0..<360, using: &generator)
+              return rotate(image: dataset.images[index], degrees: degrees)
+            } else {
+              return dataset.images[index]
+            }
+          case .number:
+            return Tensor<Float>(dataset.numbers[index])
           }
         }()
         let output = { () -> Tensor<Float> in
@@ -133,51 +241,51 @@ public struct Task {
   }
 }
 
-internal func target(for source: Float, problem: Problem) -> Float {
-  switch (problem) {
-    case .identity: return source
-    case let .moduloAdd1(modulo): return (source + 1).truncatingRemainder(dividingBy: modulo)
-    case .inverse(.identity): return source
-    case let .inverse(.moduloAdd1(modulo)): return (source - 1).truncatingRemainder(dividingBy: modulo)
-    case let .inverse(.inverse(baseProblem)): return target(for: source, problem: baseProblem)
-  }
-}
+public struct RotationTask: Task {
+  public let dataset: Dataset
 
-//===------------------------------------------------------------------------------------------===//
-// Problem Compilers
-//===------------------------------------------------------------------------------------------===//
+  private typealias ExampleIterator = IndexingIterator<Array<Int>>
+  private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
+  private typealias TrainDataIterator = PrefetchIterator<BatchIterator<MapIterator<RepeatExampleIterator, Example>>>
 
-public protocol ProblemCompiler: Differentiable {
-  var problemEmbeddingSize: Int { get }
+  private var trnExamplesIterator: TrainDataIterator
 
-  @differentiable
-  func compile(problem: Problem) -> Tensor<Float>
-}
-
-public struct LinearProblemCompiler: ProblemCompiler {
-  @noDerivative public let problemEmbeddingSize: Int
-
-  public var identityEmbedding: Tensor<Float>
-  public var inverseEmbedding: Tensor<Float>
-  public var moduloAdd1Embedding: Tensor<Float>
-
-  public init(problemEmbeddingSize: Int, initializerStandardDeviation: Float = 0.02) {
-    self.problemEmbeddingSize = problemEmbeddingSize
-    let initializer = truncatedNormalInitializer(
-      standardDeviation: Tensor<Float>(initializerStandardDeviation))
-    self.identityEmbedding = initializer([1, problemEmbeddingSize])
-    self.inverseEmbedding = initializer([problemEmbeddingSize, problemEmbeddingSize])
-    self.moduloAdd1Embedding = initializer([1, problemEmbeddingSize])
+  public init(dataset: Dataset, randomSeed: Int64 = 123456789) {
+    var generator = PhiloxRandomNumberGenerator(seed: randomSeed)
+    self.dataset = dataset
+    self.trnExamplesIterator = dataset.partitions[.train]!
+      .makeIterator()
+      .repeated()
+      .shuffled(bufferSize: 1000)
+      .map { index -> Example in
+        let degrees = Float.random(in: 0..<360, using: &generator)
+        let input = dataset.images[index]
+        let output = rotate(image: input, degrees: degrees)
+        return Example(input: input, output: output, degrees: degrees)
+      }
+      .batched(batchSize: batchSize)
+      .prefetched(count: 2)
   }
 
-  @differentiable
-  public func compile(problem: Problem) -> Tensor<Float> {
-    switch problem {
-    case .identity: return identityEmbedding
-    case .moduloAdd1: return moduloAdd1Embedding
-    case let .inverse(baseProblem):
-      let baseProblemEmbedding = compile(problem: baseProblem)
-      return matmul(baseProblemEmbedding, inverseEmbedding)
+  // public mutating func update<A: Architecture, O: Optimizer>(
+  //   architecture: inout A,
+  //   using optimizer: inout O
+  // ) -> Float where O.Model == A {
+  public mutating func update<O: Optimizer>(
+    architecture: inout ConvolutionalArchitecture,
+    using optimizer: inout O
+  ) -> Float where O.Model == ConvolutionalArchitecture {
+    let batch = trnExamplesIterator.next()!
+    let problem = Problem.rotation(batch.degrees)
+    return withLearningPhase(.training) {
+      let (loss, gradient) = valueWithGradient(at: architecture) {
+        l2Loss(
+          predicted: $0.generateImage(forImage: batch.input, problem: problem),
+          expected: batch.output,
+          reduction: { $0.mean() })
+      }
+      optimizer.update(&architecture, along: gradient)
+      return loss.scalarized()
     }
   }
 }
