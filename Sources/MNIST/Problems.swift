@@ -74,14 +74,7 @@ public struct LinearProblemCompiler: ProblemCompiler {
 
   @differentiable
   public func perceptionContext(forProblem problem: Problem) -> Tensor<Float> {
-    switch problem {
-    case .identity:
-      return identityEmbedding
-    case let .rotation(degrees):
-      return (rotationEmbedding[0] * degrees / 360 + rotationEmbedding[1]).rankLifted()
-    case let .colorMap(factors):
-      return matmul(factors.rankLifted(), colorMapEmbedding)
-    }
+    return identityEmbedding
   }
 
   @differentiable
