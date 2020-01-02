@@ -164,7 +164,7 @@ public struct ContextualLeNet: Layer {
       padding: .same,
       activation: gelu)
     let conv1Generator = Sequential {
-      Conv2D<Float>(filterShape: (10, 10, 3, 8), strides: (5, 5), padding: .same, activation: gelu)
+      Conv2D<Float>(filterShape: (5, 5, 3, 32), strides: (2, 2), padding: .same, activation: gelu)
       Flatten<Float>()
       Dense<Float>(inputSize: 288, outputSize: conv1Base.parameterCount)
     }
@@ -181,7 +181,7 @@ public struct ContextualLeNet: Layer {
       padding: .same,
       activation: gelu)
     let conv2Generator = Sequential {
-      Conv2D<Float>(filterShape: (10, 10, 32, 8), strides: (5, 5), padding: .same, activation: gelu)
+      Conv2D<Float>(filterShape: (5, 5, 32, 32), strides: (2, 2), padding: .same, activation: gelu)
       Flatten<Float>()
       Dense<Float>(inputSize: 72, outputSize: conv2Base.parameterCount)
     }
