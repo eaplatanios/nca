@@ -34,19 +34,20 @@ withRandomSeedForTensorFlow(randomSeed) {
     dataset: dataset,
     randomRotations: false,
     randomSeed: randomSeed)
+  // var layer = LeNet()
   // var layer = ContextualLeNet()
   var layer = WideResNet(kind: .wideResNet28k10)
-  var optimizer = Core.Adam(
+  var optimizer = AMSGrad(
     for: layer,
-    learningRate: FixedParameter(Float(1e-3)),
-    // learningRate: ExponentiallyDecayedParameter(
-    //   baseParameter: LinearlyWarmedUpParameter(
-    //     baseParameter: FixedParameter(Float(2e-5)),
-    //     warmUpStepCount: 200000,
-    //     warmUpOffset: 0),
-    //   decayRate: 0.9999,
-    //   decayStepCount: 1,
-    //   startStep: 200000),
+    // learningRate: FixedParameter(Float(1e-3)),
+    learningRate: ExponentiallyDecayedParameter(
+      baseParameter: LinearlyWarmedUpParameter(
+        baseParameter: FixedParameter(Float(1e-3)),
+        warmUpStepCount: 1000,
+        warmUpOffset: 0),
+      decayRate: 0.995,
+      decayStepCount: 1,
+      startStep: 1000),
     beta1: 0.9,
     beta2: 0.99,
     epsilon: 1e-8)
