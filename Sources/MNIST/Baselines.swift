@@ -112,7 +112,7 @@ public struct BatchedConv2D<Scalar: TensorFlowFloatingPoint>: Layer {
         self.filter.shape[4]])
       .transposed(permutation: [2, 0, 1, 3, 4])
       .sum(squeezingAxes: 3)
-    return activation(result + bias)
+    return activation(result + bias.expandingShape(at: 1, 2))
   }
 }
 
