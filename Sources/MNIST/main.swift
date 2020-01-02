@@ -33,7 +33,8 @@ withRandomSeedForTensorFlow(randomSeed) {
     dataset: dataset,
     randomRotations: false,
     randomSeed: randomSeed)
-  var layer = ContextualLeNet()
+  // var layer = ContextualLeNet()
+  var layer = WideResNet(kind: .wideResNet28k10)
   var optimizer = Adam(
     for: layer,
     learningRate: 1e-3,
