@@ -130,7 +130,11 @@ extension Module {
       for kp in v.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
         values.append(v[keyPath: kp].reshaped(to: [batchSize, -1]))
       }
-      return Tensor(concatenating: values, alongAxis: -1)
+      if values.count > 1 {
+        return Tensor(concatenating: values, alongAxis: -1)
+      } else {
+        return values[0]
+      }
     })
   }
 }
