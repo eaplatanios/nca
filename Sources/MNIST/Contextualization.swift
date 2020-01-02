@@ -32,6 +32,24 @@ public struct ContextualizedInput<Input: Differentiable, Context: Differentiable
   }
 }
 
+public struct SelfContextualizedLayer<Base: Layer, Generator: Layer>: Layer
+where Generator.Input == Base.Input, Generator.Output == Tensor<Float> {
+  @noDerivative public let base: Base
+  public var generator: Generator
+
+  public init(base: Base, generator: Generator) {
+    self.base = base
+    self.generator = generator
+  }
+
+  @differentiable
+  public func callAsFunction(_ input: Base.Input) -> Base.Output {
+    let parameters = generator(input)
+    let layer = Base(unflattening: parameters, like: base)
+    return layer(input)
+  }
+}
+
 /// Contextualized layer. This layer consists of a generator layer and a base layer. The generator
 /// layer is used to generate the parameters of the base layer which is then used to process some
 /// input. The contextualized layer input consists of the base layer input and a context which is
@@ -85,12 +103,16 @@ extension Module {
   ///   - other: Another module to use as template when initializing the new one, for the
   ///     properties which are not included in `flattened`.
   public init(unflattening flattened: Tensor<Float>, like other: Self) {
+    let batchSize = flattened.shape[0]
     var newLayer = other
     var index = 0
     for kp in other.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
       let shape = other[keyPath: kp].shape
-      newLayer[keyPath: kp] = flattened[0, index..<index + shape.contiguousSize]
-      newLayer[keyPath: kp] = newLayer[keyPath: kp].reshaped(to: shape)
+      newLayer[keyPath: kp] = flattened[0..., index..<index + shape.contiguousSize]
+      newLayer[keyPath: kp] = newLayer[keyPath: kp]
+        .reshaped(to: batchSize > 1 ?
+          TensorShape([batchSize] + shape.dimensions) :
+          shape)
       index += shape.contiguousSize
     }
     self = newLayer
@@ -102,12 +124,13 @@ extension Module {
     value: Self,
     pullback: (TangentVector) -> Tensor<Float>
   ) {
-    (.init(unflattening: flattened, like: other), { v in
+    let batchSize = flattened.shape[0]
+    return (.init(unflattening: flattened, like: other), { v in
       var values = [Tensor<Float>]()
       for kp in v.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
-        values.append(v[keyPath: kp].flattened())
+        values.append(v[keyPath: kp].reshaped(to: [batchSize, -1]))
       }
-      return Tensor(concatenating: values, alongAxis: -1).expandingShape(at: 0)
+      return Tensor(concatenating: values, alongAxis: -1)
     })
   }
 }
