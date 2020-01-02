@@ -150,6 +150,29 @@ extension Module {
     for kp in recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
       parameters.append(self[keyPath: kp].flattened())
     }
-    return Tensor<Float>(stacking: parameters, alongAxis: 0)
+    return Tensor<Float>(concatenating: parameters, alongAxis: 0).rankLifted()
+  }
+
+  @inlinable
+  @derivative(of: flattened(), wrt: self)
+  internal func _vjpFlattened() -> (
+    value: Tensor<Float>,
+    pullback: (Tensor<Float>) -> TangentVector
+  ) {
+    return (flattened(), { v in 
+      let batchSize = v.shape[0]
+      var newLayer = self
+      var index = 0
+      for kp in self.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
+        let shape = self[keyPath: kp].shape
+        newLayer[keyPath: kp] = v[0..., index..<index + shape.contiguousSize]
+        newLayer[keyPath: kp] = newLayer[keyPath: kp]
+          .reshaped(to: batchSize > 1 ?
+            TensorShape([batchSize] + shape.dimensions) :
+            shape)
+        index += shape.contiguousSize
+      }
+      return self.differentiableVectorView
+    })
   }
 }

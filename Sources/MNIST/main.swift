@@ -20,10 +20,10 @@ let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let tempDir = currentDir.appendingPathComponent("temp")
 let tasksDir = tempDir.appendingPathComponent("tasks")
 
-let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
-// let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
+// let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
+let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
 // let dataset = try! CIFAR100Dataset(taskDirectoryURL: tasksDir)
-let batchSize = 32
+let batchSize = 64
 let randomSeed = Int64(123456789)
 
 // Baseline
@@ -36,7 +36,8 @@ withRandomSeedForTensorFlow(randomSeed) {
     randomSeed: randomSeed)
   // var layer = LeNet()
   // var layer = ContextualLeNet()
-  var layer = WideResNet(kind: .wideResNet28k10)
+  var layer = ReverseContextualizedLeNet(functionEmbeddingSize: 16)
+  // var layer = WideResNet(kind: .wideResNet28k10)
   var optimizer = AMSGrad(
     for: layer,
     // learningRate: FixedParameter(Float(1e-3)),
