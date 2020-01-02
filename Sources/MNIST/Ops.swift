@@ -23,14 +23,6 @@ public extension Tensor {
   }
 
   /// Returns a transposed tensor, with dimensions permuted in the specified order.
-  @available(*, deprecated, renamed: "transposed(permutation:)")
-  @inlinable
-  @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
-  func transposed(withPermutations permutations: Tensor<Int32>) -> Tensor {
-    transposed(permutation: permutations)
-  }
-
-  /// Returns a transposed tensor, with dimensions permuted in the specified order.
   @inlinable
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
   func transposed(permutation: [Int]) -> Tensor {
@@ -39,26 +31,10 @@ public extension Tensor {
   }
 
   /// Returns a transposed tensor, with dimensions permuted in the specified order.
-  @available(*, deprecated, renamed: "transposed(permutation:)")
-  @inlinable
-  @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
-  func transposed(withPermutations permutations: [Int]) -> Tensor {
-    transposed(permutation: permutations)
-  }
-
-  /// Returns a transposed tensor, with dimensions permuted in the specified order.
   @inlinable
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
   func transposed(permutation: Int...) -> Tensor {
     transposed(permutation: permutation)
-  }
-
-  /// Returns a transposed tensor, with dimensions permuted in the specified order.
-  @available(*, deprecated, renamed: "transposed(permutation:)")
-  @inlinable
-  @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
-  func transposed(withPermutations permutations: Int...) -> Tensor {
-    transposed(permutation: permutations)
   }
 
   /// Returns a transposed tensor, with dimensions permuted in reverse order.
@@ -77,6 +53,26 @@ internal extension Tensor where Scalar: TensorFlowFloatingPoint {
   func _vjpTransposed(permutation: Tensor<Int32>) -> (
     value: Tensor, pullback: (Tensor) -> Tensor
   ) {
+    let value = transposed(permutation: permutation)
+    return (value, { $0.transposed(permutation: _Raw.invertPermutation(permutation)) })
+  }
+
+  @inlinable
+  @derivative(of: transposed(permutation:))
+  func _vjpTransposed(permutation: [Int]) -> (
+    value: Tensor, pullback: (Tensor) -> Tensor
+  ) {
+    let permutation = Tensor<Int32>(permutation.map(Int32.init))
+    let value = transposed(permutation: permutation)
+    return (value, { $0.transposed(permutation: _Raw.invertPermutation(permutation)) })
+  }
+
+  @inlinable
+  @derivative(of: transposed(permutation:))
+  func _vjpTransposed(permutation: Int...) -> (
+    value: Tensor, pullback: (Tensor) -> Tensor
+  ) {
+    let permutation = Tensor<Int32>(permutation.map(Int32.init))
     let value = transposed(permutation: permutation)
     return (value, { $0.transposed(permutation: _Raw.invertPermutation(permutation)) })
   }
