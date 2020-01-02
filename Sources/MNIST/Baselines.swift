@@ -118,7 +118,6 @@ public struct BatchedConv2D<Scalar: TensorFlowFloatingPoint>: Layer {
 
 public extension BatchedConv2D {
   init(
-    batchSize: Int,
     filterShape: (Int, Int, Int, Int),
     strides: (Int, Int) = (1, 1),
     padding: Padding = .valid,
@@ -127,10 +126,10 @@ public extension BatchedConv2D {
     biasInitializer: ParameterInitializer<Scalar> = zeros()
   ) {
     let filterTensorShape = TensorShape([
-      batchSize, filterShape.0, filterShape.1, filterShape.2, filterShape.3])
+      filterShape.0, filterShape.1, filterShape.2, filterShape.3])
     self.init(
       filter: filterInitializer(filterTensorShape),
-      bias: biasInitializer([batchSize, filterShape.3]),
+      bias: biasInitializer([filterShape.3]),
       activation: activation,
       strides: strides,
       padding: padding)
@@ -158,7 +157,6 @@ public struct LeNet: Layer {
 public struct ContextualLeNet: Layer {
   public var conv1 = { () -> ContextualizedLayer<BatchedConv2D<Float>, Sequential<Conv2D<Float>, Sequential<Flatten<Float>, Dense<Float>>>> in
     let conv1Base = BatchedConv2D<Float>(
-      batchSize: 1,
       filterShape: (5, 5, 3, 32),
       padding: .same,
       activation: gelu)
