@@ -46,20 +46,22 @@ extension IdentityTask {
       return Example(input: input, output: output)
     }
 
-    var tstExamples = dataset.partitions[.test]!
-      .makeIterator()
-      .map(exampleMap)
-      .batched(batchSize: batchSize)
-      .prefetched(count: 2)
-    var correctCount = 0
-    var totalCount = 0
-    while let batch = tstExamples.next() {
-      let predictions = Tensor<UInt8>(layer(batch.input).argmax(squeezingAxis: -1))
-      let correct = Tensor<Int32>(predictions .== Tensor<UInt8>(batch.output))
-      correctCount += Int(correct.sum().scalarized())
-      totalCount += predictions.shape[0]
+    return withLearningPhase(.inference) {
+      var tstExamples = dataset.partitions[.test]!
+        .makeIterator()
+        .map(exampleMap)
+        .batched(batchSize: batchSize)
+        .prefetched(count: 2)
+      var correctCount = 0
+      var totalCount = 0
+      while let batch = tstExamples.next() {
+        let predictions = Tensor<UInt8>(layer(batch.input).argmax(squeezingAxis: -1))
+        let correct = Tensor<Int32>(predictions .== Tensor<UInt8>(batch.output))
+        correctCount += Int(correct.sum().scalarized())
+        totalCount += predictions.shape[0]
+      }
+      return ["acccuracy": Float(correctCount) / Float(totalCount)]
     }
-    return ["acccuracy": Float(correctCount) / Float(totalCount)]
   }
 }
 
