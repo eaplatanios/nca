@@ -155,6 +155,7 @@ public struct LeNet: Layer {
 }
 
 public struct ContextualLeNet: Layer {
+  public var norm1 = BatchNorm<Float>(featureCount: 3)
   public var conv1 = { () -> ContextualizedLayer<BatchedConv2D<Float>, Sequential<Conv2D<Float>, Sequential<Flatten<Float>, Dense<Float>>>> in
     let conv1Base = BatchedConv2D<Float>(
       filterShape: (5, 5, 3, 32),
@@ -171,6 +172,7 @@ public struct ContextualLeNet: Layer {
   // public var conv1 = Conv2D<Float>(filterShape: (5, 5, 3, 32), padding: .same, activation: gelu)
   public var pool1 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
 
+  public var norm2 = BatchNorm<Float>(featureCount: 32)
   public var conv2 = { () -> ContextualizedLayer<BatchedConv2D<Float>, Sequential<Conv2D<Float>, Sequential<Flatten<Float>, Dense<Float>>>> in
     let conv2Base = BatchedConv2D<Float>(
       filterShape: (5, 5, 32, 64),
@@ -187,6 +189,7 @@ public struct ContextualLeNet: Layer {
   // public var conv2 = Conv2D<Float>(filterShape: (5, 5, 32, 64), padding: .same, activation: gelu)
   public var pool2 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
   public var flatten = Flatten<Float>()
+  public var norm3 = BatchNorm<Float>(featureCount: 7 * 7 * 64)
   public var fc1 = Dense<Float>(inputSize: 7 * 7 * 64, outputSize: 1024, activation: gelu)
   public var fc2 = Dense<Float>(inputSize: 1024, outputSize: 10)
 
@@ -194,8 +197,9 @@ public struct ContextualLeNet: Layer {
 
   @differentiable
   public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
-    let t1 = pool1(conv1(ContextualizedInput(input: input, context: input)))
-    let t2 = pool2(conv2(ContextualizedInput(input: t1, context: t1)))
-    return fc2(fc1(flatten(t2)))
+    let t1 = norm1(input)
+    let t2 = norm2(pool1(conv1(ContextualizedInput(input: t1, context: t1))))
+    let t3 = pool2(conv2(ContextualizedInput(input: t2, context: t2)))
+    return fc2(fc1(norm3(flatten(t2))))
   }
 }
