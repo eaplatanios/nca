@@ -12,6 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import Foundation
 import TensorFlow
 
@@ -36,7 +37,7 @@ public struct CoLA: Task {
   public let problem: Problem = .classify([.negative(.grammar), .positive(.grammar)])
   public let concepts: [Concept] = [.negative(.grammar), .positive(.grammar)]
 
-  public mutating func update<A: Architecture, O: Optimizer>(
+  public mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,
     using optimizer: inout O
   ) -> Float where O.Model == A {

@@ -12,6 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import TensorFlow
 
 public enum Modality {
@@ -100,11 +101,11 @@ public struct LinearProblemCompiler: ProblemCompiler {
 //===------------------------------------------------------------------------------------------===//
 
 public protocol Task {
-  // mutating func update<A: Architecture, O: Optimizer>(
+  // mutating func update<A: Architecture, O: Core.Optimizer>(
   //   architecture: inout A,
   //   using optimizer: inout O
   // ) -> Float where O.Model == A
-  mutating func update<O: Optimizer>(
+  mutating func update<O: Core.Optimizer>(
     architecture: inout ConvolutionalArchitecture,
     using optimizer: inout O
   ) -> Float where O.Model == ConvolutionalArchitecture
@@ -185,11 +186,11 @@ public struct IdentityTask: Task {
       .prefetched(count: 2)
   }
 
-  // public mutating func update<A: Architecture, O: Optimizer>(
+  // public mutating func update<A: Architecture, O: Core.Optimizer>(
   //   architecture: inout A,
   //   using optimizer: inout O
   // ) -> Float where O.Model == A {
-  public mutating func update<O: Optimizer>(
+  public mutating func update<O: Core.Optimizer>(
     architecture: inout ConvolutionalArchitecture,
     using optimizer: inout O
   ) -> Float where O.Model == ConvolutionalArchitecture {
@@ -260,11 +261,11 @@ public struct RotationTask: Task {
       .prefetched(count: 2)
   }
 
-  // public mutating func update<A: Architecture, O: Optimizer>(
+  // public mutating func update<A: Architecture, O: Core.Optimizer>(
   //   architecture: inout A,
   //   using optimizer: inout O
   // ) -> Float where O.Model == A {
-  public mutating func update<O: Optimizer>(
+  public mutating func update<O: Core.Optimizer>(
     architecture: inout ConvolutionalArchitecture,
     using optimizer: inout O
   ) -> Float where O.Model == ConvolutionalArchitecture {

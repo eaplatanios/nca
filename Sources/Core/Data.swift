@@ -1,4 +1,4 @@
-// Copyright 2019, Emmanouil Antonios Platanios. All Rights Reserved.
+// Copyright 2020, Emmanouil Antonios Platanios. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not
 // use this file except in compliance with the License. You may obtain a copy of
@@ -13,7 +13,6 @@
 // the License.
 
 import Foundation
-import Logging
 import Progress
 
 extension IteratorProtocol {
@@ -328,7 +327,7 @@ import FoundationNetworking
 ///
 /// - Returns: Boolean value indicating whether a download was
 ///     performed (as opposed to not needed).
-internal func maybeDownload(from url: URL, to destination: URL) throws {
+public func maybeDownload(from url: URL, to destination: URL) throws {
   if !FileManager.default.fileExists(atPath: destination.path) {
     // Create any potentially missing directories.
     try FileManager.default.createDirectory(
@@ -403,7 +402,7 @@ internal class DataDownloadDelegate: NSObject, URLSessionDownloadDelegate {
   }
 }
 
-internal func extract(zipFileAt source: URL, to destination: URL) throws {
+public func extract(zipFileAt source: URL, to destination: URL) throws {
   logger.info("Extracting file at '\(source.path)'.")
   let process = Process()
   process.environment = ProcessInfo.processInfo.environment
@@ -413,7 +412,17 @@ internal func extract(zipFileAt source: URL, to destination: URL) throws {
   process.waitUntilExit()
 }
 
-internal func extract(tarGZippedFileAt source: URL, to destination: URL) throws {
+public func extract(gZippedFileAt source: URL, to destination: URL) throws {
+  logger.info("Extracting file at '\(source.path)'.")
+  let process = Process()
+  process.environment = ProcessInfo.processInfo.environment
+  process.executableURL = URL(fileURLWithPath: "/bin/bash")
+  process.arguments = ["-c", "gunzip -c \(source.path) > \(destination.path)"]
+  try process.run()
+  process.waitUntilExit()
+}
+
+public func extract(tarGZippedFileAt source: URL, to destination: URL) throws {
   logger.info("Extracting file at '\(source.path)'.")
   try FileManager.default.createDirectory(
     at: destination,
@@ -426,7 +435,7 @@ internal func extract(tarGZippedFileAt source: URL, to destination: URL) throws 
   process.waitUntilExit()
 }
 
-internal func parse(tsvFileAt fileURL: URL) throws -> [[String]] {
+public func parse(tsvFileAt fileURL: URL) throws -> [[String]] {
   try Data(contentsOf: fileURL).withUnsafeBytes {
     $0.split(separator: UInt8(ascii: "\n")).map {
       $0.split(separator: UInt8(ascii: "\t"), omittingEmptySubsequences: false)

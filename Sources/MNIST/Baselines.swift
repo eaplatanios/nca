@@ -12,10 +12,11 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import TensorFlow
 
 extension IdentityTask {
-  public mutating func update<L: Layer, O: Optimizer>(
+  public mutating func update<L: Layer, O: Core.Optimizer>(
     layer: inout L,
     using optimizer: inout O
   ) -> Float where O.Model == L, L.Input == Tensor<Float>, L.Output == Tensor<Float> {

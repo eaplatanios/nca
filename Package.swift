@@ -18,9 +18,10 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.6.0")
   ],
   targets: [
-    .target(name: "NCA", dependencies: ["Logging", "Progress", "SwiftProtobuf"]),
+    .target(name: "Core", dependencies: ["Logging", "Progress"]),
+    .target(name: "NCA", dependencies: ["Core", "Logging", "SwiftProtobuf"]),
     .target(name: "Experiments", dependencies: ["NCA"]),
-    .target(name: "MNIST", dependencies: ["Logging", "Progress"]),
+    .target(name: "MNIST", dependencies: ["Core", "Logging"]),
     .testTarget(name: "NCATests", dependencies: ["NCA"])
   ]
 )

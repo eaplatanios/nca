@@ -12,6 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import TensorFlow
 
 public protocol Architecture: Differentiable, KeyPathIterable

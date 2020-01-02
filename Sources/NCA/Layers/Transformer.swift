@@ -12,6 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import TensorFlow
 
 /// Input to a transformer layer.
@@ -166,7 +167,7 @@ extension TransformerEncoder {
 
   /// Default initializer to use for the linear transform biases.
   public static var defaultBiasInitializer: ParameterInitializer<Scalar> {
-    zerosInitializer()
+    zeros()
   }
 }
 
@@ -322,6 +323,6 @@ extension TransformerEncoderLayer {
 
   /// Default initializer to use for the linear transform biases.
   public static var defaultBiasInitializer: ParameterInitializer<Scalar> {
-    zerosInitializer()
+    zeros()
   }
 }

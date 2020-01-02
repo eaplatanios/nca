@@ -12,33 +12,39 @@
 // License for the specific language governing permissions and limitation under
 // the License.
 
-import Foundation
+import CTensorFlow
 import Logging
+import Foundation
 import TensorFlow
 
-internal let logger = Logger(label: "NCA")
+public let logger = Logger(label: "NCA")
 
-/// Returns a function that creates a tensor by initializing all its values randomly from a
-/// truncated Normal distribution. The generated values follow a Normal distribution with mean
-/// `mean` and standard deviation `standardDeviation`, except that values whose magnitude is more
-/// than two standard deviations from the mean are dropped and resampled.
-///
-/// - Parameters:
-///   - mean: Mean of the Normal distribution.
-///   - standardDeviation: Standard deviation of the Normal distribution.
-///
-///- Returns: A truncated normal parameter initializer function.
-public func truncatedNormalInitializer<Scalar: TensorFlowFloatingPoint>(
-  mean: Tensor<Scalar> = Tensor<Scalar>(0),
-  standardDeviation: Tensor<Scalar> = Tensor<Scalar>(1),
-  seed: TensorFlowSeed = TensorFlow.Context.local.randomSeed
-) -> ParameterInitializer<Scalar> {
-  {
-    Tensor<Scalar>(
-      randomTruncatedNormal: $0,
-      mean: mean,
-      standardDeviation: standardDeviation,
-      seed: seed)
+public typealias ParameterInitializer<Scalar: TensorFlowScalar> = (TensorShape) -> Tensor<Scalar>
+
+public typealias Activation<Scalar: TensorFlowFloatingPoint> =
+  @differentiable (Tensor<Scalar>) -> Tensor<Scalar>
+
+// @differentiable(where Scalar: TensorFlowFloatingPoint)
+// public func identity<Scalar>(_ value: Tensor<Scalar>) -> Tensor<Scalar> { value }
+
+public protocol Serializable {
+  init(fromFile fileURL: URL) throws
+  func save(toFile fileURL: URL) throws
+}
+
+extension Array {
+  // TODO: [DOC] Add documentation.
+  public func concurrentMap<B>(_ transform: @escaping (Element) -> B) -> [B] {
+    var result = Array<B?>(repeating: nil, count: count)
+    let queue = DispatchQueue(label: "concurrentMap Queue")
+    DispatchQueue.concurrentPerform(iterations: count) { index in
+      let element = self[index]
+      let transformed = transform(element)
+      queue.sync {
+        result[index] = transformed
+      }
+    }
+    return result.map { $0! }
   }
 }
 
@@ -70,7 +76,7 @@ public func withRandomSeedForTensorFlow<R>(
 // Hashing
 //===------------------------------------------------------------------------------------------===//
 
-internal extension FixedWidthInteger {
+public extension FixedWidthInteger {
   init(bytes: ArraySlice<UInt8>, startingAt index: Int) {
     if bytes.isEmpty { self.init(0); return }
     let count = bytes.count
@@ -96,7 +102,7 @@ internal extension FixedWidthInteger {
   }
 }
 
-internal extension Array where Element == UInt8 {
+public extension Array where Element == UInt8 {
   /// - Note: The SHA1 hash is only 20 bytes long and so only the first 20 bytes of the returned
   ///   `SIMD32<UInt8>` are non-zero.
   func sha1() -> SIMD32<UInt8> {
@@ -315,96 +321,6 @@ internal extension Array where Element == UInt8 {
 }
 
 //===------------------------------------------------------------------------------------------===//
-// Protocols
-//===------------------------------------------------------------------------------------------===//
-
-extension KeyPathIterable {
-  public mutating func clipByGlobalNorm<Scalar: TensorFlowFloatingPoint>(clipNorm: Scalar) {
-    let clipNorm = Tensor<Scalar>(clipNorm)
-    var globalNorm = Tensor<Scalar>(zeros: [])
-    for kp in self.recursivelyAllWritableKeyPaths(to: Tensor<Scalar>.self) {
-      globalNorm += self[keyPath: kp].squared().sum()
-    }
-    globalNorm = sqrt(globalNorm)
-    for kp in self.recursivelyAllWritableKeyPaths(to: Tensor<Scalar>.self) {
-      self[keyPath: kp] *= clipNorm / max(globalNorm, clipNorm)
-    }
-  }
-}
-
-public protocol Batchable {
-  static func batch(_ values: [Self]) -> Self
-}
-
-extension Tensor: Batchable {
-  public static func batch(_ values: [Tensor]) -> Tensor {
-    Tensor(stacking: values, alongAxis: 0)
-  }
-}
-
-extension KeyPathIterable {
-  public static func batch(_ values: [Self]) -> Self {
-    var result = values[0]
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<UInt8>.self) {
-      result[keyPath: kp] = Tensor.batch(values.map { $0[keyPath: kp] })
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Int32>.self) {
-      result[keyPath: kp] = Tensor.batch(values.map { $0[keyPath: kp] })
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Int64>.self) {
-      result[keyPath: kp] = Tensor.batch(values.map { $0[keyPath: kp] })
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
-      result[keyPath: kp] = Tensor.batch(values.map { $0[keyPath: kp] })
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Double>.self) {
-      result[keyPath: kp] = Tensor.batch(values.map { $0[keyPath: kp] })
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<UInt8>?.self) {
-      let keyPathValues = values.map { $0[keyPath: kp] }
-      if keyPathValues[0] != nil {
-        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
-      } else {
-        result[keyPath: kp] = nil
-      }
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Int32>?.self) {
-      let keyPathValues = values.map { $0[keyPath: kp] }
-      if keyPathValues[0] != nil {
-        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
-      } else {
-        result[keyPath: kp] = nil
-      }
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Int64>?.self) {
-      let keyPathValues = values.map { $0[keyPath: kp] }
-      if keyPathValues[0] != nil {
-        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
-      } else {
-        result[keyPath: kp] = nil
-      }
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Float>?.self) {
-      let keyPathValues = values.map { $0[keyPath: kp] }
-      if keyPathValues[0] != nil {
-        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
-      } else {
-        result[keyPath: kp] = nil
-      }
-    }
-    for kp in result.recursivelyAllWritableKeyPaths(to: Tensor<Double>?.self) {
-      let keyPathValues = values.map { $0[keyPath: kp] }
-      if keyPathValues[0] != nil {
-        result[keyPath: kp] = Tensor.batch(keyPathValues.map { $0! })
-      } else {
-        result[keyPath: kp] = nil
-      }
-    }
-    return result
-  }
-}
-
-//===------------------------------------------------------------------------------------------===//
 // Images
 //===------------------------------------------------------------------------------------------===//
 
@@ -415,7 +331,7 @@ internal let pythonDispatchSemaphore = DispatchSemaphore(value: 1)
 
 fileprivate let ndimage = Python.import("scipy.ndimage")
 
-internal func rotate(image: Tensor<Float>, degrees: Float) -> Tensor<Float> {
+public func rotate(image: Tensor<Float>, degrees: Float) -> Tensor<Float> {
   pythonDispatchSemaphore.wait()
   defer { pythonDispatchSemaphore.signal() }
   let rotated = ndimage.rotate(image.makeNumpyArray(), degrees, reshape: false)

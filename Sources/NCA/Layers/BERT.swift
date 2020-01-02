@@ -12,6 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import Foundation
 import TensorFlow
 
@@ -729,7 +730,7 @@ extension BERT {
       case .bertBase, .bertLarge, .robertaBase, .robertaLarge:
         // Download the model, if necessary.
         let compressedFileURL = directory.appendingPathComponent("\(subDirectory).zip")
-        try NCA.maybeDownload(from: url, to: compressedFileURL)
+        try Core.maybeDownload(from: url, to: compressedFileURL)
 
         // Extract the data, if necessary.
         let extractedDirectoryURL = compressedFileURL.deletingPathExtension()
@@ -739,7 +740,7 @@ extension BERT {
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
         // Download the model, if necessary.
         let compressedFileURL = directory.appendingPathComponent("\(subDirectory).tar.gz")
-        try NCA.maybeDownload(from: url, to: compressedFileURL)
+        try Core.maybeDownload(from: url, to: compressedFileURL)
 
         // Extract the data, if necessary.
         let extractedDirectoryURL = directory.appendingPathComponent(subDirectory)

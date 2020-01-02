@@ -12,6 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import Foundation
 import TensorFlow
 
@@ -35,13 +36,20 @@ withRandomSeedForTensorFlow(randomSeed) {
     randomSeed: randomSeed)
   // var layer = ContextualLeNet()
   var layer = WideResNet(kind: .wideResNet28k10)
-  var optimizer = Adam(
+  var optimizer = Core.Adam(
     for: layer,
-    learningRate: 1e-3,
+    learningRate: FixedParameter(Float(1e-3)),
+    // learningRate: ExponentiallyDecayedParameter(
+    //   baseParameter: LinearlyWarmedUpParameter(
+    //     baseParameter: FixedParameter(Float(2e-5)),
+    //     warmUpStepCount: 200000,
+    //     warmUpOffset: 0),
+    //   decayRate: 0.9999,
+    //   decayStepCount: 1,
+    //   startStep: 200000),
     beta1: 0.9,
     beta2: 0.99,
-    epsilon: 1e-8,
-    decay: 0.01)
+    epsilon: 1e-8)
 
   func evaluate() -> [String: Float] {
     task.evaluate(

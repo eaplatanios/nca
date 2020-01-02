@@ -12,10 +12,11 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+import Core
 import TensorFlow
 
 public protocol Task {
-  mutating func update<A: Architecture, O: Optimizer>(
+  mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,
     using optimizer: inout O
   ) -> Float where O.Model == A

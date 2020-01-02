@@ -1,4 +1,4 @@
-// Copyright 2019, Emmanouil Antonios Platanios. All Rights Reserved.
+// Copyright 2020, Emmanouil Antonios Platanios. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not
 // use this file except in compliance with the License. You may obtain a copy of
@@ -42,20 +42,20 @@ import TensorFlow
 extension Tensor {
   /// Returns this tensor reshaped to a matrix (i.e., a rank-2 tensor).
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
-  internal func reshapedToMatrix() -> Tensor {
+  public func reshapedToMatrix() -> Tensor {
     reshaped(to: [-1, shape[rank - 1]])
   }
 
   /// Returns this previously-reshaped rank-2 tensor reshaped back to its original shape.
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
-  internal func reshapedFromMatrix(originalShape: TensorShape) -> Tensor {
+  public func reshapedFromMatrix(originalShape: TensorShape) -> Tensor {
     reshaped(to: TensorShape(
       originalShape[0..<originalShape.count - 1].dimensions + [shape[rank - 1]]))
   }
 
   /// Returns this previously-reshaped rank-2 tensor reshaped back to its original shape.
   @differentiable(wrt: self where Scalar: TensorFlowFloatingPoint)
-  internal func reshapedFromMatrix(originalShape: Tensor<Int32>) -> Tensor {
+  public func reshapedFromMatrix(originalShape: Tensor<Int32>) -> Tensor {
     reshaped(toShape: Tensor<Int32>(concatenating: [
       originalShape[0..<originalShape.shape[0] - 1],
       Tensor<Int32>([Int32(shape[rank - 1])])
@@ -72,7 +72,7 @@ extension Tensor where Scalar: TensorFlowFloatingPoint {
   ///
   /// - Precondition: `probability` must be in the interval `[0, 1)`.
   @differentiable(wrt: self)
-  internal func droppingOut(probability: Scalar, scaleResult: Bool = true) -> Tensor {
+  public func droppingOut(probability: Scalar, scaleResult: Bool = true) -> Tensor {
     precondition(probability >= 0 && probability < 1, "The dropout probability must be in [0, 1).")
     if probability == Scalar(0) { return self }
     let keepProbability = Scalar(1.0 - probability)
