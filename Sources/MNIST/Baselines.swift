@@ -166,7 +166,7 @@ public struct ContextualLeNet: Layer {
     let conv1Generator = Sequential {
       Conv2D<Float>(filterShape: (5, 5, 3, 32), strides: (2, 2), padding: .same, activation: gelu)
       Flatten<Float>()
-      Dense<Float>(inputSize: 288, outputSize: conv1Base.parameterCount)
+      Dense<Float>(inputSize: 6272, outputSize: conv1Base.parameterCount)
     }
     return ContextualizedLayer(base: conv1Base, generator: conv1Generator)
   }()
@@ -183,7 +183,7 @@ public struct ContextualLeNet: Layer {
     let conv2Generator = Sequential {
       Conv2D<Float>(filterShape: (5, 5, 32, 32), strides: (2, 2), padding: .same, activation: gelu)
       Flatten<Float>()
-      Dense<Float>(inputSize: 72, outputSize: conv2Base.parameterCount)
+      Dense<Float>(inputSize: 1568, outputSize: conv2Base.parameterCount)
     }
     return ContextualizedLayer(base: conv2Base, generator: conv2Generator)
   }()
