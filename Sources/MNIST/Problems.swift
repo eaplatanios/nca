@@ -131,11 +131,11 @@ public struct IdentityTask: Task {
 
   public let problem: Problem = .identity
 
-  private typealias ExampleIterator = IndexingIterator<Array<Int>>
-  private typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
-  private typealias TrainDataIterator = PrefetchIterator<BatchIterator<MapIterator<RepeatExampleIterator, Example>>>
+  internal typealias ExampleIterator = IndexingIterator<Array<Int>>
+  internal typealias RepeatExampleIterator = ShuffleIterator<RepeatIterator<ExampleIterator>>
+  internal typealias TrainDataIterator = PrefetchIterator<BatchIterator<MapIterator<RepeatExampleIterator, Example>>>
 
-  private var trnExamplesIterator: TrainDataIterator
+  internal var trnExamplesIterator: TrainDataIterator
 
   public init(
     srcModality: Modality,
