@@ -142,4 +142,14 @@ extension Module {
       }
     })
   }
+
+  /// Returns a flattened view of this layer. This corresponds to taking all the parameters of this
+  /// layer, flattening them, and finally stacking them to form a single vector.
+  public func flattened() -> Tensor<Float> {
+    var parameters = [Tensor<Float>]()
+    for kp in recursivelyAllWritableKeyPaths(to: Tensor<Float>.self) {
+      parameters.append(self[keyPath: kp].flattened())
+    }
+    return Tensor<Float>(stacking: parameters, alongAxis: 0)
+  }
 }
