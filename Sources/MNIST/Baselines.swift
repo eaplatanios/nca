@@ -200,6 +200,6 @@ public struct ContextualLeNet: Layer {
     let t1 = norm1(input)
     let t2 = norm2(pool1(conv1(ContextualizedInput(input: t1, context: t1))))
     let t3 = pool2(conv2(ContextualizedInput(input: t2, context: t2)))
-    return fc2(fc1(norm3(flatten(t2))))
+    return fc2(fc1(norm3(flatten(t3))))
   }
 }
