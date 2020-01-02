@@ -22,7 +22,7 @@ let tasksDir = tempDir.appendingPathComponent("tasks")
 let dataset = try! MNISTDataset(taskDirectoryURL: tasksDir)
 // let dataset = try! CIFAR10Dataset(taskDirectoryURL: tasksDir)
 // let dataset = try! CIFAR100Dataset(taskDirectoryURL: tasksDir)
-let batchSize = 8
+let batchSize = 32
 let randomSeed = Int64(123456789)
 
 // Baseline
@@ -40,8 +40,8 @@ withRandomSeedForTensorFlow(randomSeed) {
     beta1: 0.9,
     beta2: 0.99,
     epsilon: 1e-8,
-    decay: 0.001)
-  
+    decay: 0.01)
+
   func evaluate() -> [String: Float] {
     task.evaluate(
       layer,
