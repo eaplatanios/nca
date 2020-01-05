@@ -633,7 +633,6 @@ extension BERT {
         case .bertBase, .bertLarge:
           let vocabularyURL = directory
             .appendingPathComponent(subDirectory)
-            .appendingPathComponent(subDirectory)
             .appendingPathComponent("vocab.txt")
           return try! Vocabulary(fromFile: vocabularyURL)
         case .robertaBase, .robertaLarge:
@@ -708,7 +707,6 @@ extension BERT {
       switch self {
       case .bertBase, .bertLarge:
         model.load(fromTensorFlowCheckpoint: directory
-          .appendingPathComponent(subDirectory)
           .appendingPathComponent(subDirectory)
           .appendingPathComponent("bert_model.ckpt"))
       case .robertaBase, .robertaLarge:

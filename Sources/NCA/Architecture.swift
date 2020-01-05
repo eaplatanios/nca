@@ -12,7 +12,7 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
-import Core
+@_exported import Core
 import TensorFlow
 
 public protocol Architecture: KeyPathIterable, Regularizable
