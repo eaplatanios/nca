@@ -72,16 +72,16 @@ let bertDir = modulesDir.appendingPathComponent("text").appendingPathComponent("
 let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
 let problemCompiler = SimpleProblemCompiler(
  problemEmbeddingSize: 32,
- conceptEmbeddingSize: 128,
- modifierEmbeddingSize: 1024,
- conceptModifierHiddenSize: 128,
- conceptModifierGeneratorHiddenSize: 512,
- problemAttentionHeadCount: 4)
+ conceptEmbeddingSize: 32,
+ modifierEmbeddingSize: 32,
+ conceptModifierHiddenSize: 32,
+ conceptModifierGeneratorHiddenSize: 32,
+ problemAttentionHeadCount: 8)
 var architecture = SimpleArchitecture(
  problemCompiler: problemCompiler,
  textPerception: bert,
- hiddenSize: 128,
- reasoningHiddenSize: 128)
+ hiddenSize: 32,
+ reasoningHiddenSize: 1024)
 let useCurriculum = false
 
 let maxSequenceLength = 512 // bertConfiguration.maxSequenceLength
@@ -163,12 +163,13 @@ var optimizer = WeightDecayedAdam(
  for: architecture,
  learningRate: ExponentiallyDecayedParameter(
    baseParameter: LinearlyWarmedUpParameter(
-     baseParameter: FixedParameter(Float(2e-5)),
-     warmUpStepCount: 200000,
+     baseParameter: FixedParameter(Float(1e-3)),
+     warmUpStepCount: 100,
      warmUpOffset: 0),
-   decayRate: 0.9999,
-   decayStepCount: 1,
-   startStep: 200000),
+   decayRate: 0.9,
+   decayStepCount: 10,
+   staircase: true,
+   startStep: 100),
  weightDecayRate: 0.01,
  useBiasCorrection: false,
  beta1: 0.9,
@@ -236,14 +237,14 @@ for step in 1..<1000000 {
  }
 
  // Evaluation
- if step % 500 == 0 {
+ if step % 200 == 0 {
    // TODO: !!! Create nice table-making utilities and remove this messy temporary solution.
    logger.info("╔\([String](repeating: "═", count: 91).joined())╗")
    logger.info("║\([String](repeating: " ", count: 35).joined())\(step: step) Evaluation\([String](repeating: " ", count: 35).joined())║")
    logger.info("╠\([String](repeating: "═", count: 7).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 8).joined())╦\([String](repeating: "═", count: 32).joined())╤\([String](repeating: "═", count: 8).joined())╣")
    for taskIndex in tasks.indices {
      let (name, task) = tasks[taskIndex]
-     if name == "MNLI" || name == "QQP" { continue }
+    //  if name == "MNLI" || name == "QQP" { continue }
      var results = task.evaluate(using: architecture)
        .sorted(by: { $0.key < $1.key })
        .map { "\(metricName: $0.key) │ \(metricValue: $0.value)" }

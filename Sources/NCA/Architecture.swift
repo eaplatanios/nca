@@ -21,7 +21,7 @@ where TangentVector: KeyPathIterable {
   associatedtype TextPerception: TextPerceptionModule
 
   @differentiable var problemCompiler: ProblemCompiler { get set }
-  @differentiable var textPerception: TextPerception { get set }
+  var textPerception: TextPerception { get set }
 
   @differentiable
   func perceive(text: TextBatch) -> Tensor<Float>
@@ -117,7 +117,7 @@ public struct SimpleArchitecture: Architecture {
   @noDerivative public let reasoningHiddenSize: Int
 
   public var problemCompiler: SimpleProblemCompiler
-  public var textPerception: BERT
+  @noDerivative public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
@@ -128,7 +128,7 @@ public struct SimpleArchitecture: Architecture {
   public var regularizationValue: TangentVector {
     TangentVector(
       problemCompiler: problemCompiler.regularizationValue,
-      textPerception: textPerception.regularizationValue,
+      // textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
