@@ -40,14 +40,8 @@ public struct MNLI: Task {
   private var mismatchedDevDataIterator: DevDataIterator
   private var mismatchedTestDataIterator: TestDataIterator
 
-  public let problem: Problem = .classify([
-    .positive(.implication),
-    .negative(.implication),
-    .neutral(.implication)])
-  public let concepts: [Concept] = [
-    .positive(.implication),
-    .negative(.implication),
-    .neutral(.implication)]
+  public let problem: Problem = .implication
+  public let concepts: [Concept] = [.implication, .contradiction, .neutral]
 
   public mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,
@@ -164,7 +158,7 @@ extension MNLI {
     // Create the data iterators used for training and evaluating.
     self.trainDataIterator = trainExamples.shuffled().makeIterator() // TODO: [RNG] Seed support.
       .repeated()
-      .shuffled(bufferSize: 1000)
+      .shuffled(bufferSize: 100000)
       .map(exampleMapFn)
       .grouped(
         keyFn: { $0.inputs.tokenIds.shape[1] / 10 },

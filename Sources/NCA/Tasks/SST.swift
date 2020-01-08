@@ -34,8 +34,8 @@ public struct SST: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
-  public let problem: Problem = .classify([.negative(.sentiment), .positive(.sentiment)])
-  public let concepts: [Concept] = [.negative(.sentiment), .positive(.sentiment)]
+  public let problem: Problem = .sentiment
+  public let concepts: [Concept] = [.negativeSentiment, .positiveSentiment]
 
   public mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,

@@ -36,8 +36,8 @@ public struct QNLI: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
-  public let problem: Problem = .classify([.neutral(.implication), .positive(.implication)])
-  public let concepts: [Concept] = [.neutral(.implication), .positive(.implication)]
+  public let problem: Problem = .implication
+  public let concepts: [Concept] = [.neutral, .implication]
 
   public mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,

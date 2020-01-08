@@ -34,8 +34,8 @@ public struct CoLA: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
-  public let problem: Problem = .classify([.negative(.grammar), .positive(.grammar)])
-  public let concepts: [Concept] = [.negative(.grammar), .positive(.grammar)]
+  public let problem: Problem = .grammar
+  public let concepts: [Concept] = [.grammaticallyIncorrect, .grammaticallyCorrect]
 
   public mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,

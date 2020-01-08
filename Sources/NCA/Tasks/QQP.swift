@@ -36,8 +36,8 @@ public struct QQP: Task {
   private var devDataIterator: DevDataIterator
   private var testDataIterator: TestDataIterator
 
-  public let problem: Problem = .classify([.negative(.equivalence), .positive(.equivalence)])
-  public let concepts: [Concept] = [.negative(.equivalence), .positive(.equivalence)]
+  public let problem: Problem = .equivalence
+  public let concepts: [Concept] = [.nonEquivalence, .equivalence]
 
   public mutating func update<A: Architecture, O: Core.Optimizer>(
     architecture: inout A,

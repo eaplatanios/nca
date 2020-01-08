@@ -72,11 +72,7 @@ let bertDir = modulesDir.appendingPathComponent("text").appendingPathComponent("
 let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
 let problemCompiler = SimpleProblemCompiler(
  problemEmbeddingSize: 32,
- conceptEmbeddingSize: 32,
- modifierEmbeddingSize: 32,
- conceptModifierHiddenSize: 32,
- conceptModifierGeneratorHiddenSize: 32,
- problemAttentionHeadCount: 8)
+ conceptEmbeddingSize: 32)
 var architecture = SimpleArchitecture(
  problemCompiler: problemCompiler,
  textPerception: bert,
@@ -86,76 +82,77 @@ let useCurriculum = false
 
 let maxSequenceLength = 512 // bertConfiguration.maxSequenceLength
 let taskInitializers: [() -> (String, Task)] = [
- { () in
-   ("MRPC", try! MRPC(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("CoLA", try! CoLA(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("RTE", try! RTE(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("SST", try! SST(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("STS", try! STS(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("QNLI", try! QNLI(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("WNLI", try! WNLI(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
- { () in
-   ("SNLI", try! SNLI(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- },
+// { () in
+//   ("MRPC", try! MRPC(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("CoLA", try! CoLA(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("RTE", try! RTE(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("SST", try! SST(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("STS", try! STS(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("QNLI", try! QNLI(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("WNLI", try! WNLI(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
+// { () in
+//   ("SNLI", try! SNLI(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// },
  { () in
    ("MNLI", try! MNLI(
      for: architecture,
      taskDirectoryURL: tasksDir,
      maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
+     batchSize: 1))
  },
- { () in
-   ("QQP", try! QQP(
-     for: architecture,
-     taskDirectoryURL: tasksDir,
-     maxSequenceLength: maxSequenceLength,
-     batchSize: 1024))
- }]
+// { () in
+//   ("QQP", try! QQP(
+//     for: architecture,
+//     taskDirectoryURL: tasksDir,
+//     maxSequenceLength: maxSequenceLength,
+//     batchSize: 1))
+// }
+]
 logger.info("Initializing tasks and loading their data in memory.")
 var tasks = taskInitializers.concurrentMap { $0() }
 
