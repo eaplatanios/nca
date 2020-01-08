@@ -120,8 +120,8 @@ public struct SimpleArchitecture: Architecture {
   @noDerivative public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
-  public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Linear<Float>>
-  public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Affine<Float>>, Linear<Float>>
+  public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Affine<Float>>
+  public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Sequential<Affine<Float>, Affine<Float>>>, Affine<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
   public var reasoningToConceptDense: Affine<Float>
 
@@ -169,27 +169,34 @@ public struct SimpleArchitecture: Architecture {
         standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
     self.textPoolingOutputDense = ContextualizedLayer(
       base: textPoolingOutputDenseBase,
-      generator: Linear<Float>(
+      generator: Affine<Float>(
         inputSize: problemCompiler.problemEmbeddingSize,
         outputSize: textPoolingOutputDenseBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
           standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
-    let reasoningBase = Sequential(
+    let reasoningBase = Sequential {
       Affine<Float>(
         inputSize: hiddenSize,
         outputSize: reasoningHiddenSize,
         activation: textPerception.intermediateActivation,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(textPerception.initializerStandardDeviation))),
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
+      Affine<Float>(
+        inputSize: reasoningHiddenSize,
+        outputSize: reasoningHiddenSize,
+        activation: textPerception.intermediateActivation,
+        weightInitializer: truncatedNormalInitializer(
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
       Affine<Float>(
         inputSize: reasoningHiddenSize,
         outputSize: hiddenSize,
         activation: textPerception.intermediateActivation,
         weightInitializer: truncatedNormalInitializer(
-          standardDeviation: Tensor(textPerception.initializerStandardDeviation))))
+          standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
+    }
     self.reasoning = ContextualizedLayer(
       base: reasoningBase,
-      generator: Linear<Float>(
+      generator: Affine<Float>(
         inputSize: problemCompiler.problemEmbeddingSize,
         outputSize: reasoningBase.parameterCount,
         weightInitializer: truncatedNormalInitializer(
