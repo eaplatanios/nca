@@ -132,6 +132,7 @@ public struct SimpleArchitecture: Architecture {
       textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
+      textPoolingNormalization: textPoolingNormalization.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
       reasoning: reasoning.regularizationValue,
       reasoningLayerNormalization: reasoningLayerNormalization.regularizationValue,
