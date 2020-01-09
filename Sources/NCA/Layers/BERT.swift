@@ -504,18 +504,18 @@ extension BERT {
 
     /// The URL where this pre-trained model can be downloaded from.
     public var url: URL {
-      let bertPrefix = "https://storage.googleapis.com/bert_models/2018_"
+      let bertPrefix = "https://storage.googleapis.com/bert_models/"
       let robertaPrefix = "https://www.dropbox.com/s"
       let albertPrefix = "https://storage.googleapis.com/tfhub-modules/google/albert"
       switch self {
-      case .bertBase(false, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
-      case .bertBase(true, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
-      case .bertBase(false, true): return URL(string: "\(bertPrefix)11_03/\(subDirectory).zip")!
-      case .bertBase(true, true): return URL(string: "\(bertPrefix)11_23/\(subDirectory).zip")!
-      case .bertLarge(false, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
-      case .bertLarge(true, false): return URL(string: "\(bertPrefix)10_18/\(subDirectory).zip")!
-      case .bertLarge(false, true): return URL(string: "\(bertPrefix)05_30/\(subDirectory).zip")!
-      case .bertLarge(true, true): return URL(string: "\(bertPrefix)05_30/\(subDirectory).zip")!
+      case .bertBase(false, false): return URL(string: "\(bertPrefix)2018_10_18/\(subDirectory).zip")!
+      case .bertBase(true, false): return URL(string: "\(bertPrefix)2018_10_18/\(subDirectory).zip")!
+      case .bertBase(false, true): return URL(string: "\(bertPrefix)2018_11_03/\(subDirectory).zip")!
+      case .bertBase(true, true): return URL(string: "\(bertPrefix)2018_11_23/\(subDirectory).zip")!
+      case .bertLarge(false, false): return URL(string: "\(bertPrefix)2018_10_18/\(subDirectory).zip")!
+      case .bertLarge(true, false): return URL(string: "\(bertPrefix)2018_10_18/\(subDirectory).zip")!
+      case .bertLarge(false, true): return URL(string: "\(bertPrefix)2019_05_30/\(subDirectory).zip")!
+      case .bertLarge(true, true): return URL(string: "\(bertPrefix)2019_05_30/\(subDirectory).zip")!
       case .robertaBase: return URL(string: "\(robertaPrefix)/12ymhgwbfxm2ozf/base.zip?dl=1")!
       case .robertaLarge: return URL(string: "\(robertaPrefix)/jf6kxmdvxyfl4wz/large.zip?dl=1")!
       case .albertBase, .albertLarge, .albertXLarge, .albertXXLarge:
