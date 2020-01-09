@@ -115,6 +115,7 @@ public struct ArchitectureInput {
 public struct SimpleArchitecture: Architecture {
   @noDerivative public let hiddenSize: Int
   @noDerivative public let reasoningHiddenSize: Int
+  @noDerivative public let gpuCount: Int
 
   public var problemCompiler: SimpleProblemCompiler
   @noDerivative public var textPerception: BERT
@@ -141,12 +142,14 @@ public struct SimpleArchitecture: Architecture {
     problemCompiler: SimpleProblemCompiler,
     textPerception: BERT,
     hiddenSize: Int,
-    reasoningHiddenSize: Int
+    reasoningHiddenSize: Int,
+    gpuCount: Int = 1
   ) {
     self.problemCompiler = problemCompiler
     self.textPerception = textPerception
     self.hiddenSize = hiddenSize
     self.reasoningHiddenSize = reasoningHiddenSize
+    self.gpuCount = gpuCount
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: problemCompiler.problemEmbeddingSize,
       outputSize: textPerception.hiddenSize,
@@ -213,7 +216,7 @@ public struct SimpleArchitecture: Architecture {
 
   @differentiable
   public func perceive(text: TextBatch) -> Tensor<Float> {
-    textPerception(text)
+    withDevice(.gpu, UInt(1 % gpuCount)) { textPerception(text) }
   }
 
   @differentiable
