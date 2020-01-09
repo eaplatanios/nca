@@ -115,12 +115,12 @@ public struct ArchitectureInput {
 public struct SimpleArchitecture: Architecture {
   @noDerivative public let hiddenSize: Int
   @noDerivative public let reasoningHiddenSize: Int
-  @noDerivative public let gpuCount: Int
 
   public var problemCompiler: SimpleProblemCompiler
-  @noDerivative public var textPerception: BERT
+  public var textPerception: BERT
   public var textPoolingQueryDense: Affine<Float>
   public var textPoolingMultiHeadAttention: MultiHeadAttention
+  public var textPoolingNormalization: LayerNormalization<Float>
   public var textPoolingOutputDense: ContextualizedLayer<Affine<Float>, Affine<Float>>
   public var reasoning: ContextualizedLayer<Sequential<Affine<Float>, Sequential<Affine<Float>, Affine<Float>>>, Affine<Float>>
   public var reasoningLayerNormalization: LayerNormalization<Float>
@@ -129,7 +129,7 @@ public struct SimpleArchitecture: Architecture {
   public var regularizationValue: TangentVector {
     TangentVector(
       problemCompiler: problemCompiler.regularizationValue,
-      // textPerception: textPerception.regularizationValue,
+      textPerception: textPerception.regularizationValue,
       textPoolingQueryDense: textPoolingQueryDense.regularizationValue,
       textPoolingMultiHeadAttention: textPoolingMultiHeadAttention.regularizationValue,
       textPoolingOutputDense: textPoolingOutputDense.regularizationValue,
@@ -142,14 +142,12 @@ public struct SimpleArchitecture: Architecture {
     problemCompiler: SimpleProblemCompiler,
     textPerception: BERT,
     hiddenSize: Int,
-    reasoningHiddenSize: Int,
-    gpuCount: Int = 1
+    reasoningHiddenSize: Int
   ) {
     self.problemCompiler = problemCompiler
     self.textPerception = textPerception
     self.hiddenSize = hiddenSize
     self.reasoningHiddenSize = reasoningHiddenSize
-    self.gpuCount = gpuCount
     self.textPoolingQueryDense = Affine<Float>(
       inputSize: problemCompiler.problemEmbeddingSize,
       outputSize: textPerception.hiddenSize,
@@ -165,9 +163,13 @@ public struct SimpleArchitecture: Architecture {
       valueActivation: { $0 },
       attentionDropoutProbability: textPerception.attentionDropoutProbability,
       matrixResult: true)
+    self.textPoolingNormalization = LayerNormalization<Float>(
+      featureCount: textPerception.hiddenSize,
+      axis: -1)
     let textPoolingOutputDenseBase = Affine<Float>(
       inputSize: textPerception.hiddenSize,
       outputSize: hiddenSize,
+      activation: textPerception.intermediateActivation,
       weightInitializer: truncatedNormalInitializer(
         standardDeviation: Tensor(textPerception.initializerStandardDeviation)))
     self.textPoolingOutputDense = ContextualizedLayer(
@@ -216,7 +218,7 @@ public struct SimpleArchitecture: Architecture {
 
   @differentiable
   public func perceive(text: TextBatch) -> Tensor<Float> {
-    withDevice(.gpu, UInt(1 % gpuCount)) { textPerception(text) }
+    textPerception(text)
   }
 
   @differentiable
@@ -232,7 +234,9 @@ public struct SimpleArchitecture: Architecture {
       source: query,
       target: perceivedText,
       mask: Tensor<Float>(text.mask.expandingShape(at: 1)))
-    let pooledPerceivedText = textPoolingMultiHeadAttention(attentionInput)
+    let pooledPerceivedText = textPoolingNormalization(
+      textPoolingMultiHeadAttention(attentionInput) + 
+        perceivedText.sum(squeezingAxes: 1) / Tensor<Float>(text.mask.sum(alongAxes: -1)))
     return textPoolingOutputDense(ContextualizedInput(
       input: pooledPerceivedText,
       context: context))
