@@ -70,23 +70,33 @@ public struct ReverseContextualizedLeNet2: Layer {
   @noDerivative public var conv1Base: Conv2D<Float>
   public var conv1Generator: Sequential<Dense<Float>, Dense<Float>>
   public var pool1: MaxPool2D<Float>
+  @noDerivative public var dropout1: Dropout<Float>
   @noDerivative public var conv2Base: Conv2D<Float>
   public var conv2Generator: Sequential<Dense<Float>, Dense<Float>>
   public var pool2: MaxPool2D<Float>
+  @noDerivative public var dropout2: Dropout<Float>
   @noDerivative public var conv3Base: Conv2D<Float>
   public var conv3Generator: Sequential<Dense<Float>, Dense<Float>>
   public var pool3: MaxPool2D<Float>
+  @noDerivative public var dropout3: Dropout<Float>
   @noDerivative public var conv4Base: Conv2D<Float>
   public var conv4Generator: Sequential<Dense<Float>, Dense<Float>>
   public var pool4: MaxPool2D<Float>
+  @noDerivative public var dropout4: Dropout<Float>
   public var flatten: Flatten<Float>
   @noDerivative public var fc1Base: Dense<Float>
   public var fc1Generator: Sequential<Dense<Float>, Dense<Float>>
+  @noDerivative public var dropoutFc1: Dropout<Float>
   public var fc2: Dense<Float>
 
   public init(functionEmbeddingSize: Int) {
     let fc2 = Dense<Float>(inputSize: 1024, outputSize: 10)
     let fc1Base = Dense<Float>(inputSize: 5 * 5 * 128, outputSize: 1024, activation: gelu)
+    self.dropout1 = Dropout<Float>(probability: 0.2)
+    self.dropout2 = Dropout<Float>(probability: 0.2)
+    self.dropout3 = Dropout<Float>(probability: 0.2)
+    self.dropout4 = Dropout<Float>(probability: 0.2)
+    self.dropoutFc1 = Dropout<Float>(probability: 0.2)
     self.fc2 = fc2
     self.fc1Base = fc1Base
     self.fc1Generator = Sequential {
@@ -136,7 +146,8 @@ public struct ReverseContextualizedLeNet2: Layer {
     let conv3 = Conv2D<Float>(unflattening: conv3Parameters, like: conv3Base)
     let conv4 = Conv2D<Float>(unflattening: conv4Parameters, like: conv4Base)
     let fc1 = Dense<Float>(unflattening: fc1Parameters, like: fc1Base)
-    let convolved = input.sequenced(through: conv1, pool1, conv2, pool2, conv3, pool3)
-    return convolved.sequenced(through: conv4, pool4, flatten, fc1, fc2)
+    let convolved1 = input.sequenced(through: conv1, pool1, dropout1, conv2, pool2, dropout2)
+    let convolved2 = convolved1.sequenced(through: conv3, pool3, dropout3, conv4, pool4, dropout4)
+    return convolved2.sequenced(through: flatten, fc1, dropoutFc1, fc2)
   }
 }
