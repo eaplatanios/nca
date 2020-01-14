@@ -69,15 +69,15 @@ let tasksDir = ncaDir.appendingPathComponent("tasks")
 let bertDir = modulesDir.appendingPathComponent("text").appendingPathComponent("bert")
 
 // let bert = try BERT.PreTrainedModel.robertaBase.load(from: bertDir)
-let bert = try BERT.PreTrainedModel.bertBase(cased: false, multilingual: false).load(from: bertDir)
+let bert = try BERT.PreTrainedModel.bertLarge(cased: false, wholeWordMasking: true).load(from: bertDir)
 let problemCompiler = SimpleProblemCompiler(
- problemEmbeddingSize: 32,
- conceptEmbeddingSize: 32)
+  problemEmbeddingSize: 32,
+  conceptEmbeddingSize: 32)
 var architecture = SimpleArchitecture(
- problemCompiler: problemCompiler,
- textPerception: bert,
- hiddenSize: 1024,
- reasoningHiddenSize: 1024)
+  problemCompiler: problemCompiler,
+  textPerception: bert,
+  hiddenSize: 1024,
+  reasoningHiddenSize: 1024)
 let useCurriculum = false
 
 let maxSequenceLength = 512 // bertConfiguration.maxSequenceLength

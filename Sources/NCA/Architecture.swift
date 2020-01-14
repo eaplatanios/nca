@@ -236,8 +236,7 @@ public struct SimpleArchitecture: Architecture {
       target: perceivedText,
       mask: Tensor<Float>(text.mask.expandingShape(at: 1)))
     let pooledPerceivedText = textPoolingNormalization(
-      textPoolingMultiHeadAttention(attentionInput) + 
-        perceivedText.sum(squeezingAxes: 1) / Tensor<Float>(text.mask.sum(alongAxes: -1)))
+      textPoolingMultiHeadAttention(attentionInput))
     return textPoolingOutputDense(ContextualizedInput(
       input: pooledPerceivedText,
       context: context))
