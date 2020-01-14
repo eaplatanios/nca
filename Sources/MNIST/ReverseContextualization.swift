@@ -91,7 +91,7 @@ public struct ReverseContextualizedLeNet2: Layer {
 
   public init(functionEmbeddingSize: Int) {
     let fc2 = Dense<Float>(inputSize: 1024, outputSize: 10)
-    let fc1Base = Dense<Float>(inputSize: 5 * 5 * 128, outputSize: 1024, activation: gelu)
+    let fc1Base = Dense<Float>(inputSize: 128, outputSize: 1024, activation: gelu)
     self.dropout1 = Dropout<Float>(probability: 0.2)
     self.dropout2 = Dropout<Float>(probability: 0.2)
     self.dropout3 = Dropout<Float>(probability: 0.2)

@@ -36,7 +36,7 @@ withRandomSeedForTensorFlow(randomSeed) {
     randomSeed: randomSeed)
   // var layer = LeNet()
   // var layer = ContextualLeNet()
-  var layer = ReverseContextualizedLeNet(functionEmbeddingSize: 16)
+  var layer = ReverseContextualizedLeNet2(functionEmbeddingSize: 16)
   // var layer = WideResNet(kind: .wideResNet28k10)
   var optimizer = AMSGrad(
     for: layer,
