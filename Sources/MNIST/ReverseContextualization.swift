@@ -76,6 +76,9 @@ public struct ReverseContextualizedLeNet2: Layer {
   @noDerivative public var conv3Base: Conv2D<Float>
   public var conv3Generator: Sequential<Dense<Float>, Dense<Float>>
   public var pool3: MaxPool2D<Float>
+  @noDerivative public var conv4Base: Conv2D<Float>
+  public var conv4Generator: Sequential<Dense<Float>, Dense<Float>>
+  public var pool4: MaxPool2D<Float>
   public var flatten: Flatten<Float>
   @noDerivative public var fc1Base: Dense<Float>
   public var fc1Generator: Sequential<Dense<Float>, Dense<Float>>
@@ -91,11 +94,18 @@ public struct ReverseContextualizedLeNet2: Layer {
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: fc1Base.parameterCount)
     }
     self.flatten = Flatten<Float>()
+    self.pool4 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
+    let conv4Base = Conv2D<Float>(filterShape: (3, 3, 128, 128), padding: .same, activation: gelu)
+    self.conv4Base = conv4Base
+    self.conv4Generator = Sequential {
+      Dense<Float>(inputSize: fc1Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
+      Dense<Float>(inputSize: functionEmbeddingSize, outputSize: conv4Base.parameterCount)
+    }
     self.pool3 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
-    let conv3Base = Conv2D<Float>(filterShape: (5, 5, 64, 128), padding: .same, activation: gelu)
+    let conv3Base = Conv2D<Float>(filterShape: (3, 3, 64, 128), padding: .same, activation: gelu)
     self.conv3Base = conv3Base
     self.conv3Generator = Sequential {
-      Dense<Float>(inputSize: fc1Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
+      Dense<Float>(inputSize: conv4Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: conv3Base.parameterCount)
     }
     self.pool2 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
@@ -117,14 +127,16 @@ public struct ReverseContextualizedLeNet2: Layer {
   @differentiable
   public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
     let fc1Parameters = fc1Generator(fc2.flattened())
-    let conv3Parameters = conv3Generator(fc1Parameters)
+    let conv4Parameters = conv4Generator(fc1Parameters)
+    let conv3Parameters = conv3Generator(conv4Parameters)
     let conv2Parameters = conv2Generator(conv3Parameters)
     let conv1Parameters = conv1Generator(conv2Parameters)
     let conv1 = Conv2D<Float>(unflattening: conv1Parameters, like: conv1Base)
     let conv2 = Conv2D<Float>(unflattening: conv2Parameters, like: conv2Base)
     let conv3 = Conv2D<Float>(unflattening: conv3Parameters, like: conv3Base)
+    let conv4 = Conv2D<Float>(unflattening: conv4Parameters, like: conv4Base)
     let fc1 = Dense<Float>(unflattening: fc1Parameters, like: fc1Base)
     let convolved = input.sequenced(through: conv1, pool1, conv2, pool2, conv3, pool3)
-    return convolved.sequenced(through: flatten, fc1, fc2)
+    return convolved.sequenced(through: conv4, pool4, flatten, fc1, fc2)
   }
 }
