@@ -83,7 +83,7 @@ public struct ReverseContextualizedLeNet2: Layer {
 
   public init(functionEmbeddingSize: Int) {
     let fc2 = Dense<Float>(inputSize: 1024, outputSize: 10)
-    let fc1Base = Dense<Float>(inputSize: 3 * 3 * 128, outputSize: 1024, activation: gelu)
+    let fc1Base = Dense<Float>(inputSize: 5 * 5 * 128, outputSize: 1024, activation: gelu)
     self.fc2 = fc2
     self.fc1Base = fc1Base
     self.fc1Generator = Sequential {
@@ -92,21 +92,21 @@ public struct ReverseContextualizedLeNet2: Layer {
     }
     self.flatten = Flatten<Float>()
     self.pool3 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
-    let conv3Base = Conv2D<Float>(filterShape: (3, 3, 64, 128), padding: .same, activation: gelu)
+    let conv3Base = Conv2D<Float>(filterShape: (5, 5, 64, 128), padding: .same, activation: gelu)
     self.conv3Base = conv3Base
     self.conv3Generator = Sequential {
       Dense<Float>(inputSize: fc1Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: conv3Base.parameterCount)
     }
     self.pool2 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
-    let conv2Base = Conv2D<Float>(filterShape: (3, 3, 32, 64), padding: .same, activation: gelu)
+    let conv2Base = Conv2D<Float>(filterShape: (5, 5, 32, 64), padding: .same, activation: gelu)
     self.conv2Base = conv2Base
     self.conv2Generator = Sequential {
       Dense<Float>(inputSize: conv3Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: conv2Base.parameterCount)
     }
     self.pool1 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
-    let conv1Base = Conv2D<Float>(filterShape: (3, 3, 3, 32), padding: .same, activation: gelu)
+    let conv1Base = Conv2D<Float>(filterShape: (5, 5, 3, 32), padding: .same, activation: gelu)
     self.conv1Base = conv1Base
     self.conv1Generator = Sequential {
       Dense<Float>(inputSize: conv2Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
