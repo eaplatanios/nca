@@ -26,7 +26,7 @@ public struct BatchNormConv2DBlock: Layer {
     public var conv2: Conv2D<Float>
     public var shortcut: Conv2D<Float>
     @noDerivative let isExpansion: Bool
-    @noDerivative let dropout: Dropout<Float> = Dropout(probability: 0.3)
+    @noDerivative let dropout: Dropout<Float> = Dropout(probability: 0.0)
 
     public init(
         featureCounts: (Int, Int),
@@ -51,16 +51,16 @@ public struct BatchNormConv2DBlock: Layer {
 
     @differentiable
     public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
-        let preact1 = gelu(norm1(input))
+        let preact1 = relu(norm1(input))
         var residual = conv1(preact1)
         let preact2: Tensor<Float>
         let shortcutResult: Tensor<Float>
         if isExpansion {
             shortcutResult = shortcut(preact1)
-            preact2 = gelu(norm2(residual))
+            preact2 = relu(norm2(residual))
         } else { 
             shortcutResult = input
-            preact2 = dropout(gelu(norm2(residual)))
+            preact2 = dropout(relu(norm2(residual)))
         }
         residual = conv2(preact2)
         return residual + shortcutResult
@@ -118,7 +118,7 @@ public struct WideResNet: Layer {
     @differentiable
     public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
         let inputLayer = input.sequenced(through: l1, l2, l3, l4)
-        let finalNorm = gelu(norm(inputLayer))
+        let finalNorm = relu(norm(inputLayer))
         return finalNorm.sequenced(through: avgPool, flatten, classifier)
     }
 }

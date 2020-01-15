@@ -36,21 +36,21 @@ withRandomSeedForTensorFlow(randomSeed) {
     randomSeed: randomSeed)
   // var layer = LeNet()
   // var layer = ContextualLeNet()
-  var layer = ReverseContextualizedLeNet2(functionEmbeddingSize: 16)
-  // var layer = WideResNet(kind: .wideResNet28k10)
-  var optimizer = AMSGrad(
+  // var layer = ReverseContextualizedLeNet2(functionEmbeddingSize: 16)
+  var layer = WideResNet(kind: .wideResNet28k10)
+  var optimizer = Adam(
     for: layer,
-    // learningRate: FixedParameter(Float(1e-3)),
-    learningRate: ExponentiallyDecayedParameter(
-      baseParameter: LinearlyWarmedUpParameter(
-        baseParameter: FixedParameter(Float(1e-3)),
-        warmUpStepCount: 1000,
-        warmUpOffset: 0),
-      decayRate: 0.995,
-      decayStepCount: 1,
-      startStep: 1000),
+    learningRate: FixedParameter(Float(1e-3)),
+    // learningRate: ExponentiallyDecayedParameter(
+    //   baseParameter: LinearlyWarmedUpParameter(
+    //     baseParameter: FixedParameter(Float(1e-3)),
+    //     warmUpStepCount: 1000,
+    //     warmUpOffset: 0),
+    //   decayRate: 0.995,
+    //   decayStepCount: 1,
+    //   startStep: 1000),
     beta1: 0.9,
-    beta2: 0.99,
+    beta2: 0.999,
     epsilon: 1e-8)
 
   func evaluate() -> [String: Float] {
