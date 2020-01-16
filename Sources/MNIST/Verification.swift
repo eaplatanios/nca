@@ -46,6 +46,17 @@ where Input == VerificationInput<ModelInput, ModelOutput>,
   ) -> ModelOutput where InfereceOptimizer.Model == ModelOutput
 }
 
+fileprivate func projectToSimplex(_ values: Tensor<Float>) -> Tensor<Float> {
+  let k = Int32(values.shape[values.rank - 1])
+  let (u, _) = _Raw.topKV2(values, k: Tensor<Int32>(k), sorted: true)
+  let cssv = u.cumulativeSum(alongAxis: -1)
+  let rho = Tensor<Int32>(
+    u * Tensor<Float>(rangeFrom: 1, to: Float(k) + 1, stride: 1) .> cssv - 1
+  ).sum(alongAxes: -1)
+  let theta = (cssv.batchGathering(atIndices: rho - 1) - 1) / Tensor<Float>(rho)
+  return max(values - theta, 0)
+}
+
 extension Verifier {
   public func callAsFunction<InfereceOptimizer: Core.Optimizer>(
     outputFor input: ModelInput,
@@ -59,6 +70,7 @@ extension Verifier {
         return self(verificationInput).mean()
       }
       optimizer.update(&output, along: gradient)
+      output = projectToSimplex(output)
     }
     return output
   }
@@ -119,7 +131,7 @@ extension Verifier {
       var dataIterator = dataset.partitions[.test]!
         .makeIterator()
         .map(exampleMap)
-        .batched(batchSize: batchSize)
+        .batched(batchSize: 1000)
         .prefetched(count: 2)
       var correctCount = 0
       var totalCount = 0
