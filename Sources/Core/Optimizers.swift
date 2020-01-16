@@ -39,7 +39,7 @@ public protocol Optimizer {
 /// https://arxiv.org/abs/1412.6980v8)
 public struct Adam<Model: Differentiable, LearningRate: ScheduledParameter>: Optimizer
 where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
-                           ElementaryFunctions & KeyPathIterable,
+                           ElementaryFunctions,// & KeyPathIterable,
       Model.TangentVector.VectorSpaceScalar == Float,
       LearningRate.Scalar == Float {
   /// The learning rate to use when updating models.
@@ -87,9 +87,9 @@ where Model.TangentVector: VectorProtocol & PointwiseMultiplicative &
 
   public mutating func update(_ model: inout Model, along direction: Model.TangentVector) {
     var direction = direction
-    if let globalNorm = maxGradientGlobalNorm {
-      direction.clipByGlobalNorm(clipNorm: globalNorm)
-    }
+    // if let globalNorm = maxGradientGlobalNorm {
+    //   direction.clipByGlobalNorm(clipNorm: globalNorm)
+    // }
     step += 1
     firstMoments = firstMoments.scaled(by: beta1)
     firstMoments += direction.scaled(by: 1 - beta1)

@@ -28,6 +28,34 @@ let randomSeed = Int64(123456789)
 
 // Baseline
 withRandomSeedForTensorFlow(randomSeed) {
+  var verifier = LeNetVerifier()
+  let trainingOptimizer = Adam(
+    for: verifier,
+    learningRate: FixedParameter(Float(1e-3)),
+    beta1: 0.9,
+    beta2: 0.999,
+    epsilon: 1e-8)
+  let inferenceOptimizer = Adam(
+    for: Tensor<Float>(0.0), // TODO: !!!
+    learningRate: FixedParameter(Float(1e-3)),
+    beta1: 0.9,
+    beta2: 0.999,
+    epsilon: 1e-8)
+  verifier.train(
+    using: dataset,
+    trainingOptimizer: trainingOptimizer,
+    inferenceOptimizer: inferenceOptimizer)
+
+
+
+
+
+
+
+
+
+
+
   var task = IdentityTask(
     srcModality: .image,
     tgtModality: .number,
@@ -35,9 +63,10 @@ withRandomSeedForTensorFlow(randomSeed) {
     randomRotations: false,
     randomSeed: randomSeed)
   // var layer = LeNet()
+  var layer = LeNet2()
   // var layer = ContextualLeNet()
   // var layer = ReverseContextualizedLeNet2(functionEmbeddingSize: 16)
-  var layer = WideResNet(kind: .wideResNet28k10)
+  // var layer = WideResNet(kind: .wideResNet28k10)
   var optimizer = Adam(
     for: layer,
     learningRate: FixedParameter(Float(1e-3)),
