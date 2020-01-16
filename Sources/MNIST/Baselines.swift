@@ -157,6 +157,34 @@ public struct LeNet: Layer {
   }
 }
 
+public struct LeNet2: Layer {
+  public var conv1 = Conv2D<Float>(filterShape: (5, 5, 3, 32), padding: .same, activation: gelu)
+  public var pool1 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
+  @noDerivative public let dropout1 = Dropout<Float>(probability: 0.2)
+  public var conv2 = Conv2D<Float>(filterShape: (5, 5, 32, 64), padding: .same, activation: gelu)
+  public var pool2 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
+  @noDerivative public let dropout2 = Dropout<Float>(probability: 0.2)
+  public var conv3 = Conv2D<Float>(filterShape: (3, 3, 64, 128), padding: .same, activation: gelu)
+  public var pool3 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
+  @noDerivative public let dropout3 = Dropout<Float>(probability: 0.2)
+  public var conv4 = Conv2D<Float>(filterShape: (3, 3, 128, 128), padding: .same, activation: gelu)
+  public var pool4 = MaxPool2D<Float>(poolSize: (2, 2), strides: (2, 2))
+  @noDerivative public let dropout4 = Dropout<Float>(probability: 0.2)
+  public var flatten = Flatten<Float>()
+  public var fc1 = Dense<Float>(inputSize: 128, outputSize: 1024, activation: gelu)
+  @noDerivative public let dropoutFc1 = Dropout<Float>(probability: 0.2)
+  public var fc2 = Dense<Float>(inputSize: 1024, outputSize: 10)
+
+  public init() {}
+
+  @differentiable
+  public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
+    let convolved1 = input.sequenced(through: conv1, pool1, dropout1, conv2, pool2, dropout2)
+    let convolved2 = convolved1.sequenced(through: conv3, pool3, dropout3, conv4, pool4, dropout4)
+    return convolved2.sequenced(through: flatten, fc1, dropoutFc1, fc2)
+  }
+}
+
 public struct ContextualLeNet: Layer {
   public var norm1 = BatchNorm<Float>(featureCount: 3)
   public var conv1 = { () -> ContextualizedLayer<BatchedConv2D<Float>, Sequential<Conv2D<Float>, Sequential<Flatten<Float>, Dense<Float>>>> in
