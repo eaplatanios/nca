@@ -36,8 +36,10 @@ withRandomSeedForTensorFlow(randomSeed) {
     randomSeed: randomSeed)
   // var layer = LeNet()
   // var layer = ContextualLeNet()
+  // var layer = MLP()
+  var layer = ReverseContextualizedMLP(functionEmbeddingSize: 16)
   // var layer = ReverseContextualizedLeNet2(functionEmbeddingSize: 16)
-  var layer = WideResNet(kind: .wideResNet28k10)
+  // var layer = WideResNet(kind: .wideResNet28k10)
   var optimizer = Adam(
     for: layer,
     learningRate: FixedParameter(Float(1e-3)),
