@@ -16,20 +16,27 @@ import Core
 import TensorFlow
 
 public struct MLP: Layer {
-  public var dense1 = Dense<Float>(inputSize: 28 * 28 * 3, outputSize: 128, activation: gelu)
-  public var dense2 = Dense<Float>(inputSize: 128, outputSize: 64, activation: gelu)
-  public var dense3 = Dense<Float>(inputSize: 64, outputSize: 32, activation: gelu)
-  public var dense4 = Dense<Float>(inputSize: 32, outputSize: 10)
+  @noDerivative public let dropout: Dropout<Float> = Dropout<Float>(probability: 0.2)
+  public var dense1 = Dense<Float>(inputSize: 28 * 28 * 3, outputSize: 1024, activation: gelu)
+  public var dense2 = Dense<Float>(inputSize: 1024, outputSize: 512, activation: gelu)
+  public var dense3 = Dense<Float>(inputSize: 512, outputSize: 256, activation: gelu)
+  public var dense4 = Dense<Float>(inputSize: 256, outputSize: 10)
 
   public init() {}
 
   @differentiable
   public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
-    dense4(dense3(dense2(dense1(input.reshaped(to: [-1, 28 * 28 * 3])))))
+    dense4(
+      dropout(dense3(
+        dropout(dense2(
+          dropout(dense1(input.reshaped(to: [-1, 28 * 28 * 3])))
+        ))
+      )))
   }
 }
 
 public struct ReverseContextualizedMLP: Layer {
+  @noDerivative public let dropout: Dropout<Float> = Dropout<Float>(probability: 0.2)
   @noDerivative public let dense1Base: Dense<Float>
   public var dense1Generator: Sequential<Dense<Float>, Dense<Float>>
   @noDerivative public let dense2Base: Dense<Float>
@@ -41,25 +48,25 @@ public struct ReverseContextualizedMLP: Layer {
   public var initialContext: Tensor<Float>
 
   public init(functionEmbeddingSize: Int) {
-    let dense4Base = Dense<Float>(inputSize: 32, outputSize: 10)
+    let dense4Base = Dense<Float>(inputSize: 256, outputSize: 10)
     self.dense4Base = dense4Base
     self.dense4Generator = Sequential {
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: functionEmbeddingSize, activation: gelu)
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: dense4Base.parameterCount)
     }
-    let dense3Base = Dense<Float>(inputSize: 64, outputSize: 32, activation: gelu)
+    let dense3Base = Dense<Float>(inputSize: 512, outputSize: 256, activation: gelu)
     self.dense3Base = dense3Base
     self.dense3Generator = Sequential {
       Dense<Float>(inputSize: dense4Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: dense3Base.parameterCount)
     }
-    let dense2Base = Dense<Float>(inputSize: 128, outputSize: 64, activation: gelu)
+    let dense2Base = Dense<Float>(inputSize: 1024, outputSize: 512, activation: gelu)
     self.dense2Base = dense2Base
     self.dense2Generator = Sequential {
       Dense<Float>(inputSize: dense3Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
       Dense<Float>(inputSize: functionEmbeddingSize, outputSize: dense2Base.parameterCount)
     }
-    let dense1Base = Dense<Float>(inputSize: 28 * 28 * 3, outputSize: 128, activation: gelu)
+    let dense1Base = Dense<Float>(inputSize: 28 * 28 * 3, outputSize: 1024, activation: gelu)
     self.dense1Base = dense1Base
     self.dense1Generator = Sequential {
       Dense<Float>(inputSize: dense2Base.parameterCount, outputSize: functionEmbeddingSize, activation: gelu)
@@ -78,7 +85,12 @@ public struct ReverseContextualizedMLP: Layer {
     let dense2 = Dense<Float>(unflattening: dense2Parameters, like: dense2Base)
     let dense3 = Dense<Float>(unflattening: dense3Parameters, like: dense3Base)
     let dense4 = Dense<Float>(unflattening: dense4Parameters, like: dense4Base)
-    return dense4(dense3(dense2(dense1(input.reshaped(to: [-1, 28 * 28 * 3])))))
+    return dense4(
+      dropout(dense3(
+        dropout(dense2(
+          dropout(dense1(input.reshaped(to: [-1, 28 * 28 * 3])))
+        ))
+      )))
   }
 }
 
